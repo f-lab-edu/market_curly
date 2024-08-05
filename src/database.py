@@ -4,11 +4,8 @@ from sqlmodel import SQLModel, pool
 from src import config
 
 engine = create_async_engine(
-    url=config.db.url,
+    config.db.url,
     echo=config.db.echo,
-    connect_args={
-        "check_same_thread": False,
-    },
     poolclass=pool.StaticPool,
 )
 

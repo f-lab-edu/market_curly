@@ -1,22 +1,26 @@
+import os
+
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
 class DatabaseConfig(BaseSettings):
-    url: str = Field(default="sqlite+aiosqlite:///./db.sqlite3", alias="DATABASE_URL")
-    echo: bool = Field(default=True, alias="DATABASE_ECHO")
+    url: str = Field(default=os.getenv("DATABASE_URL"), alias="DATABASE_URL")
+    echo: bool = Field(default=os.getenv("DATABASE_ECHO"), alias="DATABASE_ECHO")
 
 
 class CORSConfig(BaseSettings):
-    origins: str = Field(default="*", alias="CORS_ORIGINS")
-    credentials: bool = Field(default=True, alias="CORS_CREDENTIALS")
-    methods: str = Field(default="*", alias="CORS_METHODS")
-    headers: str = Field(default="*", alias="CORS_HEADERS")
+    origins: str = Field(default=os.getenv("CORS_ORIGINS"), alias="CORS_ORIGINS")
+    credentials: bool = Field(
+        default=os.getenv("CORS_CREDENTIALS"), alias="CORS_CREDENTIALS"
+    )
+    methods: str = Field(default=os.getenv("CORS_METHODS"), alias="CORS_METHODS")
+    headers: str = Field(default=os.getenv("CORS_HEADERS"), alias="CORS_HEADERS")
 
 
 class WebConfig(BaseSettings):
-    host: str = Field(default="0.0.0.0", alias="WEB_HOST")
-    port: int = Field(default=8000, alias="WEB_PORT")
+    host: str = Field(default=os.getenv("WEB_HOST"), alias="WEB_HOST")
+    port: int = Field(default=os.getenv("WEB_PORT"), alias="WEB_PORT")
 
 
 db = DatabaseConfig()
