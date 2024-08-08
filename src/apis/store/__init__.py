@@ -48,6 +48,5 @@ store_router.add_api_route(
     methods=["DELETE"],
     path="/products/{product_id}",
     endpoint=product.delete_product_handler,
-    # response_model=product.GetProductResponse,
     status_code=status.HTTP_204_NO_CONTENT,
 )

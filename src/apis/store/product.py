@@ -89,4 +89,4 @@ async def delete_product_handler(
     if not product:
         raise HTTPException(status_code=404, detail="Product Not Found")
 
-    await delete_product(product_id, session)
+    await delete_product(product, session)
