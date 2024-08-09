@@ -1,28 +1,19 @@
-from typing import Annotated
-
 from fastapi import Depends, HTTPException
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from src.apis.dependencies import get_session
 from src.models.product import Product
-from src.models.repository import (
-    create_product,
-    delete_product,
-    get_product_by_id,
-    update_product,
-)
+from src.models.repository import ProductRepository
 from src.schema.request import CreateProductRequest, UpdateProductRequest
 from src.schema.response import GetProductDetailResponse, GetProductResponse
 
 
 async def create_product_handler(
     request: CreateProductRequest,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    product_repo: ProductRepository = Depends(ProductRepository),
 ) -> GetProductResponse:
     request_data = request.dict(exclude_unset=True)
 
     product: Product = Product(**request_data)
-    created_product: Product = await create_product(product, session)
+    created_product: Product = await product_repo.create_product(product)
 
     return GetProductResponse(
         id=created_product.id,
@@ -33,9 +24,9 @@ async def create_product_handler(
 
 
 async def get_product_by_id_handler(
-    product_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+    product_id: int, product_repo: ProductRepository = Depends(ProductRepository)
 ) -> GetProductDetailResponse:
-    product: Product | None = await get_product_by_id(product_id, session)
+    product: Product | None = await product_repo.get_product_by_id(product_id)
 
     if product is None:
         raise HTTPException(status_code=404, detail="Product Not Found")
@@ -60,9 +51,9 @@ async def get_product_by_id_handler(
 async def update_product_handler(
     product_id: int,
     request: UpdateProductRequest,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    product_repo: ProductRepository = Depends(ProductRepository),
 ):
-    product: Product | None = await get_product_by_id(product_id, session)
+    product: Product | None = await product_repo.get_product_by_id(product_id)
 
     if product:
         request_data = request.dict(exclude_unset=True)
@@ -70,7 +61,7 @@ async def update_product_handler(
             if hasattr(product, key) and value is not None:
                 setattr(product, key, value)
 
-        updated_product: Product = await update_product(product, session)
+        updated_product: Product = await product_repo.update_product(product)
         return GetProductResponse(
             id=updated_product.id,
             product_name=updated_product.product_name,
@@ -82,11 +73,11 @@ async def update_product_handler(
 
 
 async def delete_product_handler(
-    product_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+    product_id: int, product_repo: ProductRepository = Depends(ProductRepository)
 ):
-    product: Product | None = await get_product_by_id(product_id, session)
+    product: Product | None = await product_repo.get_product_by_id(product_id)
 
     if not product:
         raise HTTPException(status_code=404, detail="Product Not Found")
 
-    await delete_product(product, session)
+    await product_repo.delete_product(product)

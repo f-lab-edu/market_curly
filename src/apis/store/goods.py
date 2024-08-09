@@ -1,18 +1,17 @@
-from typing import Annotated, List
+from typing import List
 
 from fastapi import Depends, HTTPException
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from src.apis.dependencies import get_session
 from src.models.product import Product
-from src.models.repository import get_product_by_id, get_product_list
+from src.models.repository import ProductRepository
 from src.schema.response import GetGoodsDetailResponse, GetGoodsResponse
 
 
 async def get_goods_list_handler(
-    session: Annotated[AsyncSession, Depends(get_session)]
+    # session: Annotated[AsyncSession, Depends(get_session)]
+    product_repo: ProductRepository = Depends(ProductRepository),
 ) -> List[GetGoodsResponse]:
-    goods_list: List[Product] = await get_product_list(session)
+    goods_list: List[Product] = await product_repo.get_product_list()
 
     return sorted(
         [
@@ -30,9 +29,9 @@ async def get_goods_list_handler(
 
 
 async def get_goods_by_id_handler(
-    goods_id: int, session: Annotated[AsyncSession, Depends(get_session)]
+    goods_id: int, product_repo: ProductRepository = Depends(ProductRepository)
 ) -> GetGoodsDetailResponse:
-    goods: Product | None = await get_product_by_id(goods_id, session)
+    goods: Product | None = await product_repo.get_product_by_id(goods_id)
 
     if goods is None:
         raise HTTPException(status_code=404, detail="Goods Not Found")
