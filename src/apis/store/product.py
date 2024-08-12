@@ -10,7 +10,7 @@ async def create_product_handler(
     request: CreateProductRequest,
     product_repo: ProductRepository = Depends(ProductRepository),
 ) -> GetProductResponse:
-    request_data = request.dict(exclude_unset=True)
+    request_data = request.model_dump(exclude_unset=True)
 
     product: Product = Product(**request_data)
     created_product: Product = await product_repo.create_product(product)
@@ -56,7 +56,7 @@ async def update_product_handler(
     product: Product | None = await product_repo.get_product_by_id(product_id)
 
     if product:
-        request_data = request.dict(exclude_unset=True)
+        request_data = request.model_dump(exclude_unset=True)
         for key, value in request_data.items():
             if hasattr(product, key) and value is not None:
                 setattr(product, key, value)
