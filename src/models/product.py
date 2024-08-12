@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+from sqlalchemy import Column, Text
 from sqlmodel import Field, Relationship, SQLModel
 
 from src.models.user import Seller
@@ -20,7 +21,7 @@ class SecondaryCategory(SQLModel, table=True):
     __tablename__ = "secondary_categories"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    name: str = Field(nullable=False, max_length=20, unique=True)
+    name: str = Field(nullable=False, max_length=20)
     primary_category_id: int = Field(
         foreign_key="primary_categories.id", nullable=False
     )
@@ -37,7 +38,7 @@ class TertiaryCategory(SQLModel, table=True):
     __tablename__ = "tertiary_categories"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    name: str = Field(nullable=False, max_length=20, unique=True)
+    name: str = Field(nullable=False, max_length=20)
     secondary_category_id: int = Field(
         foreign_key="secondary_categories.id", nullable=False
     )
@@ -57,12 +58,16 @@ class Product(SQLModel, table=True):
     category_id: int = Field(foreign_key="tertiary_categories.id", nullable=False)
     price: int = Field(nullable=False)
     discounted_price: Optional[int] = Field(default=0, nullable=False)
-    capacity: Optional[str] = Field(default=None, max_length=20)
-    key_specification: Optional[str] = Field(default=None, max_length=50)
-    expiration_date: Optional[str] = Field(default=None, max_length=50)
-    how_to_use: Optional[str] = Field(default=None)
-    ingredient: Optional[str] = Field(default=None)
-    caution: Optional[str] = Field(default=None)
+    capacity: Optional[str] = Field(default=None, max_length=20, nullable=True)
+    key_specification: Optional[str] = Field(default=None, max_length=50, nullable=True)
+    expiration_date: Optional[str] = Field(default=None, max_length=50, nullable=True)
+    how_to_use: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    ingredient: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    caution: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     inventory_quantity: Optional[int] = Field(default=0, nullable=False)
     use_status: bool = Field(default=True, nullable=False)
 
