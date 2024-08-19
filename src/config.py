@@ -23,6 +23,13 @@ class WebConfig(BaseSettings):
     port: int = Field(default=os.getenv("WEB_PORT"), alias="WEB_PORT")
 
 
+class RedisConfig(BaseSettings):
+    host: str = Field(default=os.getenv("REDIS_HOST"), alias="REDIS_HOST")
+    port: str = Field(default=os.getenv("REDIS_PORT"), alias="REDIS_PORT")
+    db: str = Field(default=os.getenv("REDIS_DB"), alias="REDIS_DB")
+
+
 db = DatabaseConfig()
 cors = CORSConfig()
 web = WebConfig()
+redis = RedisConfig()
