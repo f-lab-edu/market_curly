@@ -48,3 +48,23 @@ class GetProductDetailResponse(BaseModel):
     caution: Optional[str] = None
     inventory_quantity: int
     use_status: bool
+
+
+class GetRegisterInfoResponse(BaseModel):
+    user_type: str
+    email: str
+    name: str
+
+
+class GetSellerInfoResponse(BaseModel):
+    email: str
+    registration_number: str
+    brand_name: str
+    contact_number: Optional[str] = None
+
+
+class GetBuyerInfoResponse(BaseModel):
+    email: str
+    name: str
+    phone_number: str
+    address: str

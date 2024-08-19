@@ -20,8 +20,12 @@ class User(SQLModel, table=True):
     password: str = Field(sa_column=Column(String(255), nullable=False))
     user_type: UserType = Field(sa_column=Column(SqlEnum(UserType), nullable=False))
 
-    seller: Optional["Seller"] = Relationship(back_populates="user")
-    buyer: Optional["Buyer"] = Relationship(back_populates="user")
+    seller: Optional["Seller"] = Relationship(
+        back_populates="user", sa_relationship_kwargs={"lazy": "joined"}
+    )
+    buyer: Optional["Buyer"] = Relationship(
+        back_populates="user", sa_relationship_kwargs={"lazy": "joined"}
+    )
 
 
 class Seller(SQLModel, table=True):
@@ -35,7 +39,9 @@ class Seller(SQLModel, table=True):
     brand_name: str = Field(sa_column=Column(String(50), nullable=False, unique=True))
     contact_number: Optional[str] = Field(sa_column=Column(String(20), nullable=False))
 
-    user: User = Relationship(back_populates="seller")
+    user: User = Relationship(
+        back_populates="seller", sa_relationship_kwargs={"lazy": "joined"}
+    )
     products: List["Product"] = Relationship(back_populates="seller")
 
 
@@ -48,4 +54,6 @@ class Buyer(SQLModel, table=True):
     phone_number: str = Field(sa_column=Column(String(20), nullable=False))
     address: str = Field(sa_column=Column(String(200), nullable=False))
 
-    user: User = Relationship(back_populates="buyer")
+    user: User = Relationship(
+        back_populates="buyer", sa_relationship_kwargs={"lazy": "joined"}
+    )
