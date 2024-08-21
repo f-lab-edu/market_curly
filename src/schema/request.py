@@ -6,7 +6,7 @@ from src.models.user import UserType
 
 
 class CreateProductRequest(BaseModel):
-    seller_id: int
+    # seller_id: int
     product_name: str
     category_id: int
     price: int
