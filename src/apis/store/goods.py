@@ -17,7 +17,7 @@ async def get_goods_list_handler(
         [
             GetGoodsResponse(
                 id=goods.id,
-                brand=goods.seller.corporate_name,
+                brand_name=goods.seller.brand_name,
                 product_name=goods.product_name,
                 price=goods.price,
                 discounted_price=goods.discounted_price,
@@ -39,7 +39,7 @@ async def get_goods_by_id_handler(
     return GetGoodsDetailResponse(
         id=goods.id,
         category=goods.category.name,
-        brand=goods.seller.corporate_name,
+        brand_name=goods.seller.brand_name,
         product_name=goods.product_name,
         price=goods.price,
         discounted_price=goods.discounted_price,
@@ -49,5 +49,5 @@ async def get_goods_by_id_handler(
         how_to_use=goods.how_to_use,
         ingredient=goods.ingredient,
         caution=goods.caution,
-        contact=goods.seller.contact_information,
+        contact_number=goods.seller.contact_number,
     )
