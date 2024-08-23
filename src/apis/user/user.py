@@ -89,7 +89,7 @@ async def login_user_handler(
     session_id = await session_service.create_session(session_data=session_data)
 
     response = JSONResponse(content={"message": "Login successful"})
-    response.set_cookie(key="session_id", value=session_id, httponly=True)
+    response.set_cookie(key="session_id", value=session_id, httponly=True, secure=True)
     return response
 
 
