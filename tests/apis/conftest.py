@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest_asyncio
 from httpx import AsyncClient
 from redis.asyncio import Redis
@@ -27,3 +29,10 @@ async def redis_client() -> Redis:
     client = get_redis_client()
     yield client
     await client.close()
+
+
+@pytest_asyncio.fixture(scope="session")
+def event_loop():
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()

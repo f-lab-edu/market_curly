@@ -10,8 +10,8 @@ from src.models.user import Seller
 # 'GET /goods' API가 성공적으로 동작한다.
 @pytest.mark.asyncio
 async def test_goods_list_successfully(client: AsyncClient, mocker):
-    seller_1 = Seller(id=1, corporate_name="판매자1")
-    seller_2 = Seller(id=2, corporate_name="판매자2")
+    seller_1 = Seller(id=1, brand_name="판매자1")
+    seller_2 = Seller(id=2, brand_name="판매자2")
 
     product_1 = Product(
         id=1,
@@ -58,14 +58,14 @@ async def test_goods_list_successfully(client: AsyncClient, mocker):
     assert data == [
         {
             "id": product_3.id,
-            "brand": product_3.seller.corporate_name,
+            "brand_name": product_3.seller.brand_name,
             "product_name": product_3.product_name,
             "price": product_3.price,
             "discounted_price": product_3.discounted_price,
         },
         {
             "id": product_1.id,
-            "brand": product_1.seller.corporate_name,
+            "brand_name": product_1.seller.brand_name,
             "product_name": product_1.product_name,
             "price": product_1.price,
             "discounted_price": product_1.discounted_price,
@@ -76,7 +76,7 @@ async def test_goods_list_successfully(client: AsyncClient, mocker):
 # 'GET /goods/{goods_id}' API가 성공적으로 동작한다.
 @pytest.mark.asyncio
 async def test_get_goods_by_id_successfully(client: AsyncClient, mocker):
-    seller = Seller(id=1, corporate_name="판매자", contact_information="000-000-0000")
+    seller = Seller(id=1, brand_name="판매자", contact_number="000-000-0000")
     category = TertiaryCategory(id=1, name="카테고리")
 
     product = Product(
@@ -100,7 +100,7 @@ async def test_get_goods_by_id_successfully(client: AsyncClient, mocker):
     assert data == {
         "id": product.id,
         "category": product.category.name,
-        "brand": product.seller.corporate_name,
+        "brand_name": product.seller.brand_name,
         "product_name": product.product_name,
         "price": product.price,
         "discounted_price": product.discounted_price,
@@ -110,7 +110,7 @@ async def test_get_goods_by_id_successfully(client: AsyncClient, mocker):
         "how_to_use": product.how_to_use,
         "ingredient": product.ingredient,
         "caution": product.caution,
-        "contact": product.seller.contact_information,
+        "contact_number": product.seller.contact_number,
     }
 
 
