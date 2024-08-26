@@ -1,6 +1,7 @@
+import re
 from typing import List
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
 
 from src.models.product import Product
 from src.models.repository import ProductRepository
@@ -8,10 +9,25 @@ from src.schema.response import GetGoodsDetailResponse, GetGoodsResponse
 
 
 async def get_goods_list_handler(
-    # session: Annotated[AsyncSession, Depends(get_session)]
+    category: str = Query(default=None, max_length=15),
     product_repo: ProductRepository = Depends(ProductRepository),
 ) -> List[GetGoodsResponse]:
-    goods_list: List[Product] = await product_repo.get_product_list()
+    if not category:
+        goods_list: List[Product] = await product_repo.get_product_list()
+    else:
+        match = re.match(r"(\D+)(\d+)", category)
+        if not match:
+            raise HTTPException(status_code=400, detail="Invalid query format.")
+
+        category_type, category_id = match.groups()
+        category_id = int(category_id)
+
+        goods_list = await product_repo.get_product_list_by_category(
+            category_type, category_id
+        )
+
+    if goods_list is None:
+        goods_list = []
 
     return sorted(
         [
