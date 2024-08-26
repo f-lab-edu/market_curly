@@ -73,6 +73,48 @@ async def test_goods_list_successfully(client: AsyncClient, mocker):
     ]
 
 
+# 'GET /goods?category=' 유효한 쿼리 스트링이 주어졌을 때, 필터링된 결과가 반환된다.
+@pytest.mark.asyncio
+async def test_goods_list_with_valid_category(client: AsyncClient, mocker):
+    mock_seller = Seller(id=1, brand_name="판매자 브랜드")
+    mock_product = Product(
+        id=1,
+        seller_id=1,
+        product_name="테스트 상품",
+        category_id=1,
+        price=100,
+        seller=mock_seller,
+    )
+
+    mocker.patch.object(
+        ProductRepository, "get_product_list_by_category", return_value=[mock_product]
+    )
+
+    response = await client.get("/goods?category=tertiary1")
+
+    assert response.status_code == status.HTTP_200_OK
+
+    data = response.json()
+    assert data == [
+        {
+            "id": mock_product.id,
+            "brand_name": mock_product.seller.brand_name,
+            "product_name": mock_product.product_name,
+            "price": mock_product.price,
+            "discounted_price": mock_product.discounted_price,
+        }
+    ]
+
+
+# 'GET /goods?category=' 유효하지 않은 쿼리 스트링이 주어지면 400을 반환한다.
+@pytest.mark.asyncio
+async def test_goods_list_with_invalid_category(client: AsyncClient, mocker):
+    response = await client.get("/goods?category=invalid-query")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json() == {"detail": "Invalid query format."}
+
+
 # 'GET /goods/{goods_id}' API가 성공적으로 동작한다.
 @pytest.mark.asyncio
 async def test_get_goods_by_id_successfully(client: AsyncClient, mocker):
