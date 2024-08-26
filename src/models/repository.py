@@ -1,12 +1,17 @@
-from typing import List, TypeVar
+from typing import List, Optional, TypeVar
 
 from fastapi import Depends
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.apis.dependencies import get_session
-from src.models.product import Product
+from src.models.product import (
+    PrimaryCategory,
+    Product,
+    SecondaryCategory,
+    TertiaryCategory,
+)
 from src.models.user import Seller, User
 
 T = TypeVar("T", bound=SQLModel)
@@ -23,6 +28,37 @@ class ProductRepository:
             .options(joinedload(Product.seller))
         )
         return list(result.all())
+
+    async def get_product_list_by_category(
+        self, category_type: str, category_id: int
+    ) -> Optional[List[Product]]:
+        query = select(Product).options(
+            selectinload(Product.seller).load_only(Seller.brand_name)
+        )
+
+        if category_type == "primary":
+            query = (
+                query.join(TertiaryCategory)
+                .join(SecondaryCategory)
+                .join(PrimaryCategory)
+                .where(PrimaryCategory.id == category_id)
+            )
+        elif category_type == "secondary":
+            query = (
+                query.join(TertiaryCategory)
+                .join(SecondaryCategory)
+                .where(SecondaryCategory.id == category_id)
+            )
+        elif category_type == "tertiary":
+            query = query.join(TertiaryCategory).where(
+                TertiaryCategory.id == category_id
+            )
+        else:
+            return None
+
+        result = await self.session.exec(query)
+        result = list(result.all())
+        return result if result else None
 
     async def get_product_by_id(self, product_id: int) -> Product:
         result = await self.session.exec(
