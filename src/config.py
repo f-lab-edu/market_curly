@@ -29,7 +29,23 @@ class RedisConfig(BaseSettings):
     db: str = Field(default=os.getenv("REDIS_DB"), alias="REDIS_DB")
 
 
+class ElasticsearchConfig(BaseSettings):
+    host: str = Field(
+        default=os.getenv("ELASTICSEARCH_HOST"), alias="ELASTICSEARCH_HOST"
+    )
+    username: str = Field(
+        default=os.getenv("ELASTICSEARCH_USERNAME"), alias="ELASTICSEARCH_USERNAME"
+    )
+    password: str = Field(
+        default=os.getenv("ELASTICSEARCH_PASSWORD"), alias="ELASTICSEARCH_PASSWORD"
+    )
+    ca_certs: str = Field(
+        default=os.getenv("ELASTICSEARCH_CA_CERT"), alias="ELASTICSEARCH_CA_CERT"
+    )
+
+
 db = DatabaseConfig()
 cors = CORSConfig()
 web = WebConfig()
 redis = RedisConfig()
+es = ElasticsearchConfig()
