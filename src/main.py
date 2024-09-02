@@ -13,6 +13,7 @@ from src.apis.user import user_router
 from src.database import close_db, create_db_and_tables
 from src.redis_client import get_task_redis_client
 from src.service.background_task import process_tasks
+from src.service.sync import sync_all_products
 
 
 async def create_consumer_group(stream_name: str, group_name: str):
@@ -41,6 +42,9 @@ async def stop_background_tasks(app: FastAPI):
 async def lifespan(app: FastAPI):
     # DB 및 테이블 생성
     await create_db_and_tables()
+
+    # 상품 정보 동기화
+    await sync_all_products()
 
     # Redis에서 consumer 그룹 생성
     await create_consumer_group(stream_name="task_stream", group_name="task_group")
