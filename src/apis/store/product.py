@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import Cookie, Depends, HTTPException
 
 from src.models.product import Product
@@ -6,6 +8,7 @@ from src.models.user import User
 from src.schema.request import CreateProductRequest, UpdateProductRequest
 from src.schema.response import GetProductDetailResponse, GetProductResponse
 from src.service.auth import verify_seller, verify_user_can_access_product
+from src.service.background_task import add_product_to_stream
 from src.service.session import SessionService
 
 
@@ -27,6 +30,9 @@ async def create_product_handler(
     request_data = request.model_dump(exclude_unset=True)
     product: Product = Product(seller_id=user.seller.id, **request_data)
     created_product: Product = await product_repo.create_product(product)
+
+    product_info = created_product.model_dump()
+    await asyncio.create_task(add_product_to_stream(product_info=product_info))
 
     return GetProductResponse(
         id=created_product.id,
