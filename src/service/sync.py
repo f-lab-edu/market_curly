@@ -15,6 +15,7 @@ async def sync_all_products():
 
             for product in products:
                 product_info = product.model_dump()
+                product_info["brand_name"] = product.seller.brand_name
                 await es.index(
                     index="products",
                     id=product_info["id"],

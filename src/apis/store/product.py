@@ -32,6 +32,7 @@ async def create_product_handler(
     created_product: Product = await product_repo.create_product(product)
 
     product_info = created_product.model_dump()
+    product_info["brand_name"] = created_product.seller.brand_name
     await asyncio.create_task(add_product_to_stream(product_info=product_info))
 
     return GetProductResponse(
