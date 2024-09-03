@@ -1,8 +1,10 @@
 import re
 from typing import List
 
+from elasticsearch import AsyncElasticsearch
 from fastapi import Depends, HTTPException, Query
 
+from src.elastic_client import get_elasticsearch_client
 from src.models.product import Product
 from src.models.repository import ProductRepository
 from src.schema.response import GetGoodsDetailResponse, GetGoodsResponse
@@ -67,3 +69,37 @@ async def get_goods_by_id_handler(
         caution=goods.caution,
         contact_number=goods.seller.contact_number,
     )
+
+
+async def search_goods_handler(
+    keyword: str, es_client: AsyncElasticsearch = Depends(get_elasticsearch_client)
+) -> List[GetGoodsResponse]:
+    try:
+        response = await es_client.search(
+            index="products",
+            body={
+                "query": {
+                    "multi_match": {
+                        "query": keyword,
+                        "fields": ["product_name", "brand_name", "ingredient"],
+                        "fuzziness": "AUTO",
+                    }
+                }
+            },
+        )
+
+        products = [
+            GetGoodsResponse(
+                id=hit["_source"]["id"],
+                brand_name=hit["_source"]["brand_name"],
+                product_name=hit["_source"]["product_name"],
+                price=hit["_source"]["price"],
+                discounted_price=hit["_source"]["discounted_price"],
+            )
+            for hit in response["hits"]["hits"]
+        ]
+
+        return products
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
