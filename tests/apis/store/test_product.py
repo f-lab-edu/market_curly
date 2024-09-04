@@ -41,6 +41,10 @@ async def test_create_product_successfully(client: AsyncClient, mocker):
     mocker.patch.object(
         ProductRepository, "create_product", return_value=created_product
     )
+    mocker.patch(
+        "src.apis.store.product.create_product_handler.add_product_to_stream",
+        return_value=None,
+    )
 
     response = await client.post(
         "/products", json=product_data, cookies={"session_id": mock_session_id}

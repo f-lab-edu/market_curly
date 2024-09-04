@@ -44,6 +44,9 @@ async def test_register_seller_successfully(client: AsyncClient, mocker):
     mocker.patch.object(
         UserRepository, "save_entity", side_effect=[created_user, created_seller]
     )
+    mocker.patch(
+        "src.apis.user.register_user_handler.add_email_to_stream", return_value=None
+    )
 
     response = await client.post("/register", json=mock_seller_data)
 
@@ -117,6 +120,9 @@ async def test_register_buyer_successfully(client: AsyncClient, mocker):
     )
     mocker.patch.object(
         UserRepository, "save_entity", side_effect=[created_user, created_buyer]
+    )
+    mocker.patch(
+        "src.apis.user.register_user_handler.add_email_to_stream", return_value=None
     )
 
     response = await client.post("/register", json=mock_buyer_data)
