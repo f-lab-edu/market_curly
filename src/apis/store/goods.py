@@ -4,7 +4,7 @@ from typing import List
 from fastapi import Depends, HTTPException, Query
 
 from src.models.product import Product
-from src.models.repository import ProductRepository
+from src.models.repository import ElasticsearchRepository, ProductRepository
 from src.schema.response import GetGoodsDetailResponse, GetGoodsResponse
 
 
@@ -67,3 +67,27 @@ async def get_goods_by_id_handler(
         caution=goods.caution,
         contact_number=goods.seller.contact_number,
     )
+
+
+async def search_goods_handler(
+    keyword: str, es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository)
+) -> List[GetGoodsResponse]:
+    if not keyword:
+        raise HTTPException(
+            status_code=422, detail="Keyword is required and cannot be empty."
+        )
+
+    products = await es_repo.search_products(keyword)
+
+    response = [
+        GetGoodsResponse(
+            id=product["id"],
+            brand_name=product["brand_name"],
+            product_name=product["product_name"],
+            price=product["price"],
+            discounted_price=product["discounted_price"],
+        )
+        for product in products
+    ]
+
+    return response

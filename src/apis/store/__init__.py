@@ -21,6 +21,14 @@ store_router.add_api_route(
 )
 
 store_router.add_api_route(
+    methods=["GET"],
+    path="/search",
+    endpoint=goods.search_goods_handler,
+    response_model=list[goods.GetGoodsResponse],
+    status_code=status.HTTP_200_OK,
+)
+
+store_router.add_api_route(
     methods=["POST"],
     path="/products",
     endpoint=product.create_product_handler,
