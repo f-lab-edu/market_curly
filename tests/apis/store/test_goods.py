@@ -3,7 +3,7 @@ from fastapi import status
 from httpx import AsyncClient
 
 from src.models.product import Product, TertiaryCategory
-from src.models.repository import ProductRepository
+from src.models.repository import ElasticsearchRepository, ProductRepository
 from src.models.user import Seller
 
 
@@ -167,3 +167,63 @@ async def test_get_goods_by_id_not_found(client: AsyncClient, mocker):
 
     # 상품을 찾지 못한 경우 응답 상태 코드가 404
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+# 'GET /search' API가 키워드를 입력하면 성공적으로 동작한다.
+@pytest.mark.asyncio
+async def test_search_goods_successfully(client: AsyncClient, mocker):
+    keyword = "테스트"
+    mock_products = [
+        {
+            "id": 1,
+            "brand_name": "테스트 브랜드",
+            "product_name": "테스트 상품",
+            "price": 10000,
+            "discounted_price": 8000,
+        },
+        {
+            "id": 2,
+            "brand_name": "테스트 브랜드",
+            "product_name": "테스트 상품2",
+            "price": 20000,
+            "discounted_price": 0,
+        },
+    ]
+
+    mocker.patch.object(
+        ElasticsearchRepository, "search_products", return_value=mock_products
+    )
+
+    response = await client.get(f"/search?keyword={keyword}")
+
+    assert response.status_code == status.HTTP_200_OK
+
+    data = response.json()
+    assert len(data) == 2
+    assert data[0]["product_name"] == "테스트 상품"
+    assert data[1]["id"] == 2
+
+
+# 'GET /search' API가 검색 결과가 없을 때 200을 응답한다.
+@pytest.mark.asyncio
+async def test_search_goods_no_results(client: AsyncClient, mocker):
+    keyword = "no-results"
+
+    mocker.patch.object(ElasticsearchRepository, "search_products", return_value=[])
+
+    response = await client.get(f"/search?keyword={keyword}")
+
+    assert response.status_code == status.HTTP_200_OK
+
+    data = response.json()
+    assert data == []
+
+
+# 'GET /search' API에 잘못된 쿼리 파라미터가 주어졌을 때 422를 응답한다.
+@pytest.mark.asyncio
+async def test_search_goods_with_invalid_query(client: AsyncClient):
+    invalid_keyword = ""  # 잘못된 키워드
+
+    response = await client.get(f"/search?keyword={invalid_keyword}")
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
