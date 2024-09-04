@@ -72,6 +72,11 @@ async def get_goods_by_id_handler(
 async def search_goods_handler(
     keyword: str, es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository)
 ) -> List[GetGoodsResponse]:
+    if not keyword:
+        raise HTTPException(
+            status_code=422, detail="Keyword is required and cannot be empty."
+        )
+
     products = await es_repo.search_products(keyword)
 
     response = [
