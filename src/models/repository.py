@@ -1,11 +1,13 @@
 from typing import List, Optional, TypeVar
 
+from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 from sqlalchemy.orm import joinedload, selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.apis.dependencies import get_session
+from src.elastic_client import get_elasticsearch_client
 from src.models.product import (
     PrimaryCategory,
     Product,
@@ -120,3 +122,37 @@ class UserRepository:
             )
         )
         return result.first() is None
+
+
+class ElasticsearchRepository:
+    def __init__(self, es: AsyncElasticsearch = Depends(get_elasticsearch_client)):
+        self.es = es
+
+    async def search_products(self, keyword: str) -> List[dict]:
+        response = await self.es.search(
+            index="products",
+            body={
+                "query": {
+                    "bool": {
+                        "should": [
+                            {
+                                "multi_match": {
+                                    "query": keyword,
+                                    "fields": [
+                                        "product_name",
+                                        "brand_name",
+                                        "ingredient",
+                                    ],
+                                    "fuzziness": "AUTO",
+                                }
+                            },
+                            {"match_phrase_prefix": {"product_name": keyword}},
+                            {"match_phrase_prefix": {"brand_name": keyword}},
+                            {"match_phrase_prefix": {"ingredient": keyword}},
+                        ]
+                    }
+                },
+                "sort": [{"id": {"order": "desc"}}],
+            },
+        )
+        return [hit["_source"] for hit in response["hits"]["hits"]]
