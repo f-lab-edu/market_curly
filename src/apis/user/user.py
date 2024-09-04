@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import Cookie, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -9,6 +11,7 @@ from src.schema.response import (
     GetRegisterInfoResponse,
     GetSellerInfoResponse,
 )
+from src.service.background_task import add_email_to_stream
 from src.service.session import SessionService
 from src.service.user import UserService
 
@@ -47,6 +50,15 @@ async def register_user_handler(
         )
         created_seller = await user_repo.save_entity(instance=seller)
 
+        await asyncio.create_task(
+            add_email_to_stream(
+                user_info={
+                    "email": created_user.email,
+                    "name": created_seller.brand_name,
+                }
+            )
+        )
+
         return GetRegisterInfoResponse(
             user_type=created_seller.user.user_type,
             email=created_seller.user.email,
@@ -61,6 +73,12 @@ async def register_user_handler(
             address=request.address,
         )
         created_buyer = await user_repo.save_entity(instance=buyer)
+
+        await asyncio.create_task(
+            add_email_to_stream(
+                user_info={"email": created_user.email, "name": created_buyer.name}
+            )
+        )
 
         return GetRegisterInfoResponse(
             user_type=created_buyer.user.user_type,

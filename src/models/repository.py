@@ -84,6 +84,11 @@ class ProductRepository:
         product.use_status = False
         await self.session.commit()
 
+    async def fetch_all_products(self) -> List[Product]:
+        async with self.session as session:
+            result = await session.exec(select(Product))
+            return list(result.all())
+
 
 class UserRepository:
     def __init__(self, session: AsyncSession = Depends(get_session)):
