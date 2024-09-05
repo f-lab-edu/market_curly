@@ -89,7 +89,12 @@ class ProductRepository:
     async def fetch_all_products(self) -> List[Product]:
         async with self.session as session:
             result = await session.exec(
-                select(Product).options(selectinload(Product.seller))
+                select(Product).options(
+                    joinedload(Product.seller),
+                    selectinload(Product.category)
+                    .joinedload(TertiaryCategory.secondary_category)
+                    .joinedload(SecondaryCategory.primary_category),
+                )
             )
             return list(result.all())
 
