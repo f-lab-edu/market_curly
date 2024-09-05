@@ -134,30 +134,36 @@ class ElasticsearchRepository:
         self.es = es
 
     async def search_products(self, keyword: str) -> List[dict]:
-        response = await self.es.search(
-            index="products",
-            body={
-                "query": {
-                    "bool": {
-                        "should": [
-                            {
-                                "multi_match": {
-                                    "query": keyword,
-                                    "fields": [
-                                        "product_name",
-                                        "brand_name",
-                                        "ingredient",
-                                    ],
-                                    "fuzziness": "AUTO",
-                                }
-                            },
-                            {"match_phrase_prefix": {"product_name": keyword}},
-                            {"match_phrase_prefix": {"brand_name": keyword}},
-                            {"match_phrase_prefix": {"ingredient": keyword}},
-                        ]
-                    }
-                },
-                "sort": [{"id": {"order": "desc"}}],
+        def get_search_query(keyword: str) -> dict:
+            return {
+                "bool": {
+                    "should": [
+                        {
+                            "multi_match": {
+                                "query": keyword,
+                                "fields": ["product_name", "brand_name", "ingredient"],
+                                "fuzziness": "AUTO",
+                            }
+                        },
+                        {"match_phrase_prefix": {"product_name": keyword}},
+                        {"match_phrase_prefix": {"brand_name": keyword}},
+                        {"match_phrase_prefix": {"ingredient": keyword}},
+                    ]
+                }
+            }
+
+        def get_filter_query() -> dict:
+            return {"term": {"use_status": True}}
+
+        query = {
+            "query": {
+                "bool": {
+                    "must": [get_search_query(keyword)],
+                    "filter": [get_filter_query()],
+                }
             },
-        )
+            "sort": [{"id": {"order": "desc"}}],
+        }
+
+        response = await self.es.search(index="products", body=query)
         return [hit["_source"] for hit in response["hits"]["hits"]]
