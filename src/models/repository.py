@@ -171,3 +171,42 @@ class ElasticsearchRepository:
     async def get_product_by_id(self, product_id: str) -> dict:
         response = await self.es.get(index="products", id=product_id)
         return response["_source"] if response["found"] else None
+
+    async def get_product_list(self) -> List[dict]:
+        response = await self.es.search(
+            index="products",
+            body={
+                "query": {"bool": {"filter": [{"term": {"use_status": True}}]}},
+                "sort": [{"id": {"order": "desc"}}],
+            },
+        )
+        return [hit["_source"] for hit in response["hits"]["hits"]]
+
+    async def get_product_list_by_category(
+        self, category_type: str, category_id: str
+    ) -> List[dict]:
+        # 카테고리별 필드 설정 (대분류, 중분류, 소분류)
+        category_field = {
+            "primary": "category_id_1",  # 대분류
+            "secondary": "category_id_2",  # 중분류
+            "tertiary": "category_id",  # 소분류
+        }.get(category_type)
+
+        if category_field is None:
+            return None
+
+        response = await self.es.search(
+            index="products",
+            body={
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {"term": {category_field: category_id}},  # 카테고리 필드로 필터링
+                            {"term": {"use_status": True}},
+                        ]
+                    }
+                },
+                "sort": [{"id": {"order": "desc"}}],
+            },
+        )
+        return [hit["_source"] for hit in response["hits"]["hits"]]

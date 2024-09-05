@@ -3,45 +3,40 @@ from typing import List
 
 from fastapi import Depends, HTTPException, Query
 
-from src.models.product import Product
-from src.models.repository import ElasticsearchRepository, ProductRepository
+from src.models.repository import ElasticsearchRepository
 from src.schema.response import GetGoodsDetailResponse, GetGoodsResponse
 
 
 async def get_goods_list_handler(
     category: str = Query(default=None, max_length=15),
-    product_repo: ProductRepository = Depends(ProductRepository),
+    es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository),
 ) -> List[GetGoodsResponse]:
     if not category:
-        goods_list: List[Product] = await product_repo.get_product_list()
+        goods_list: List[dict] = await es_repo.get_product_list()
     else:
         match = re.match(r"(\D+)(\d+)", category)
         if not match:
             raise HTTPException(status_code=400, detail="Invalid query format.")
 
         category_type, category_id = match.groups()
-        category_id = int(category_id)
 
-        goods_list = await product_repo.get_product_list_by_category(
+        goods_list = await es_repo.get_product_list_by_category(
             category_type, category_id
         )
 
     if goods_list is None:
         goods_list = []
 
-    return sorted(
-        [
-            GetGoodsResponse(
-                id=goods.id,
-                brand_name=goods.seller.brand_name,
-                product_name=goods.product_name,
-                price=goods.price,
-                discounted_price=goods.discounted_price,
-            )
-            for goods in goods_list
-        ],
-        key=lambda goods: -goods.id,
-    )
+    return [
+        GetGoodsResponse(
+            id=goods["id"],
+            brand_name=goods["brand_name"],
+            product_name=goods["product_name"],
+            price=goods["price"],
+            discounted_price=goods["discounted_price"],
+        )
+        for goods in goods_list
+    ]
 
 
 async def get_goods_by_id_handler(
