@@ -167,3 +167,7 @@ class ElasticsearchRepository:
 
         response = await self.es.search(index="products", body=query)
         return [hit["_source"] for hit in response["hits"]["hits"]]
+
+    async def get_product_by_id(self, product_id: str) -> dict:
+        response = await self.es.get(index="products", id=product_id)
+        return response["_source"] if response["found"] else None
