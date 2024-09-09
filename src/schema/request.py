@@ -55,3 +55,8 @@ class RegisterUserRequest(BaseModel):
 class LoginUserRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class AddToCartRequest(BaseModel):
+    product_id: int
+    quantity: int

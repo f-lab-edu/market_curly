@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status
 
-from src.apis.store import goods, product
+from src.apis.store import cart, goods, product
 
 store_router = APIRouter(tags=["store"])
 
@@ -57,4 +57,11 @@ store_router.add_api_route(
     path="/products/{product_id}",
     endpoint=product.delete_product_handler,
     status_code=status.HTTP_204_NO_CONTENT,
+)
+
+store_router.add_api_route(
+    methods=["POST"],
+    path="/cart",
+    endpoint=cart.add_to_cart_handler,
+    status_code=status.HTTP_201_CREATED,
 )

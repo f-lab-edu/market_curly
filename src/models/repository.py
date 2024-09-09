@@ -2,6 +2,7 @@ from typing import List, Optional, TypeVar
 
 from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
+from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload, selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,6 +16,7 @@ from src.models.product import (
     TertiaryCategory,
 )
 from src.models.user import Seller, User
+from src.redis_client import get_redis_client
 
 T = TypeVar("T", bound=SQLModel)
 
@@ -223,3 +225,12 @@ class ElasticsearchRepository:
             },
         )
         return [hit["_source"] for hit in response["hits"]["hits"]]
+
+
+class CartRepository:
+    def __init__(self, redis: Redis = Depends(get_redis_client)):
+        self.redis = redis
+
+    async def add_product(self, user_id: int, product_id: int, quantity: int):
+        cart_key = f"cart:{user_id}"
+        await self.redis.hset(cart_key, product_id, quantity)
