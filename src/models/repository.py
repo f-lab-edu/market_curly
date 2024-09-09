@@ -242,3 +242,7 @@ class CartRepository:
     async def delete_from_cart(self, user_id: str, product_id: int):
         cart_key = f"cart:{user_id}"
         await self.redis.hdel(cart_key, product_id)
+
+    async def clear_cart(self, user_id: str):
+        cart_key = f"cart:{user_id}"
+        await self.redis.delete(cart_key)

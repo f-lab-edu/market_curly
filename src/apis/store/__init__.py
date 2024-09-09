@@ -76,6 +76,13 @@ store_router.add_api_route(
 
 store_router.add_api_route(
     methods=["DELETE"],
+    path="/cart",
+    endpoint=cart.clear_cart_handler,
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+
+store_router.add_api_route(
+    methods=["DELETE"],
     path="/cart/{product_id}",
     endpoint=cart.delete_from_cart_handler,
     status_code=status.HTTP_204_NO_CONTENT,
