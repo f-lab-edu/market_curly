@@ -65,3 +65,11 @@ store_router.add_api_route(
     endpoint=cart.add_to_cart_handler,
     status_code=status.HTTP_201_CREATED,
 )
+
+store_router.add_api_route(
+    methods=["GET"],
+    path="/cart",
+    endpoint=cart.get_cart_handler,
+    response_model=list[cart.CartResponse],
+    status_code=status.HTTP_200_OK,
+)

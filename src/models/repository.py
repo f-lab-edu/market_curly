@@ -234,3 +234,7 @@ class CartRepository:
     async def add_product(self, user_id: int, product_id: int, quantity: int):
         cart_key = f"cart:{user_id}"
         await self.redis.hset(cart_key, product_id, quantity)
+
+    async def get_cart(self, user_id: str) -> dict:
+        cart_key = f"cart:{user_id}"
+        return await self.redis.hgetall(cart_key)
