@@ -238,3 +238,7 @@ class CartRepository:
     async def get_cart(self, user_id: str) -> dict:
         cart_key = f"cart:{user_id}"
         return await self.redis.hgetall(cart_key)
+
+    async def delete_from_cart(self, user_id: str, product_id: int):
+        cart_key = f"cart:{user_id}"
+        await self.redis.hdel(cart_key, product_id)

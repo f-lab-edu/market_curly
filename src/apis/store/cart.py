@@ -60,3 +60,24 @@ async def get_cart_handler(
         )
 
     return cart_response
+
+
+async def delete_from_cart_handler(
+    product_id: int,
+    cart_repo: CartRepository = Depends(CartRepository),
+    session_id: str = Cookie(None),
+    session_service: SessionService = Depends(),
+):
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Missing Session ID")
+
+    session_data = await get_session_data(
+        session_id=session_id, session_service=session_service
+    )
+
+    if "user_id" not in session_data:
+        raise HTTPException(status_code=401, detail="User not authenticated")
+
+    await cart_repo.delete_from_cart(
+        user_id=session_data["user_id"], product_id=product_id
+    )
