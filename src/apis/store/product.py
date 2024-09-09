@@ -27,11 +27,12 @@ async def create_product_handler(
     )
     user: User = await user_repo.get_user_by_id(user_id=user_id)
 
-    request_data = request.model_dump(exclude_unset=True)
+    request_data: dict = request.model_dump(exclude_unset=True)
     product: Product = Product(seller_id=user.seller.id, **request_data)
     created_product: Product = await product_repo.create_product(product)
 
-    product_info = created_product.model_dump()
+    created_product: Product = await product_repo.fetch_product(created_product.id)
+    product_info: dict = created_product.model_dump()
 
     ##### 필요한 추가 정보 입력 #####
     # 1. 판매자 정보 : 브랜드명, 전화번호

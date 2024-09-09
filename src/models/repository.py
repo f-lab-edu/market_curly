@@ -98,6 +98,19 @@ class ProductRepository:
             )
             return list(result.all())
 
+    async def fetch_product(self, product_id: int) -> Product:
+        result = await self.session.exec(
+            select(Product)
+            .where(Product.id == product_id)
+            .options(
+                joinedload(Product.seller),
+                selectinload(Product.category)
+                .joinedload(TertiaryCategory.secondary_category)
+                .joinedload(SecondaryCategory.primary_category),
+            )
+        )
+        return result.one_or_none()
+
 
 class UserRepository:
     def __init__(self, session: AsyncSession = Depends(get_session)):
