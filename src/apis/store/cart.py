@@ -30,6 +30,8 @@ async def add_to_cart_handler(
         quantity=request.quantity,
     )
 
+    await session_service.extend_session(session_id=session_id)
+
     response = JSONResponse(content={"message": "Goods added to cart successfully"})
     return response
 
