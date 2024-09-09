@@ -52,7 +52,9 @@ async def create_product_handler(
         "category_1"
     ] = created_product.category.secondary_category.primary_category.name
 
-    await asyncio.create_task(add_product_to_stream(product_info=product_info))
+    await asyncio.create_task(
+        add_product_to_stream(product_info=product_info, action_type="create")
+    )
 
     return GetProductResponse(
         id=created_product.id,
@@ -132,6 +134,11 @@ async def update_product_handler(
                 setattr(product, key, value)
 
         updated_product: Product = await product_repo.update_product(product)
+        request_data["id"] = updated_product.id
+        await asyncio.create_task(
+            add_product_to_stream(product_info=request_data, action_type="update")
+        )
+
         return GetProductResponse(
             id=updated_product.id,
             product_name=updated_product.product_name,
@@ -167,3 +174,8 @@ async def delete_product_handler(
     )
 
     await product_repo.delete_product(product)
+    await asyncio.create_task(
+        add_product_to_stream(
+            product_info={"id": product_id, "use_status": False}, action_type="delete"
+        )
+    )
