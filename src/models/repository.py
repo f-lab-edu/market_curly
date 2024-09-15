@@ -113,6 +113,14 @@ class ProductRepository:
         )
         return result.one_or_none()
 
+    async def get_product_stock(self, product_id: int) -> Optional[int]:
+        result = await self.session.exec(
+            select(Product.inventory_quantity).where(
+                Product.id == product_id, Product.use_status == True
+            )
+        )
+        return result.one_or_none()
+
 
 class UserRepository:
     def __init__(self, session: AsyncSession = Depends(get_session)):

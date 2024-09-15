@@ -23,16 +23,18 @@ async def add_to_cart_handler(
     if "user_id" not in session_data:
         raise HTTPException(status_code=401, detail="User not authenticated")
 
-    await cart_service.add_to_cart(
+    result = await cart_service.add_to_cart(
         user_id=session_data["user_id"],
         product_id=request.product_id,
         quantity=request.quantity,
     )
 
+    if not result["is_success"]:
+        raise HTTPException(status_code=result["status_code"], detail=result["message"])
+
     await session_service.extend_session(session_id=session_id)
 
-    response = JSONResponse(content={"message": "Goods added to cart successfully"})
-    return response
+    return JSONResponse(content=result["message"])
 
 
 async def get_cart_handler(
