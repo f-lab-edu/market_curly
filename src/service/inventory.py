@@ -44,3 +44,15 @@ class InventoryService:
             else:
                 return False
         return True
+
+    async def release_product(self, user_id: int, product_id: int):
+        reservation_key = self.generate_reservation_key(product_id=product_id)
+
+        if await self.redis.exists(reservation_key):
+            all_slots = await self.redis.hgetall(reservation_key)
+            user_slots = [
+                slot for slot, value in all_slots.items() if value == str(user_id)
+            ]
+
+            for slot_number in user_slots:
+                await self.redis.hset(reservation_key, slot_number, "")

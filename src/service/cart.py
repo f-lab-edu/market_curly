@@ -71,6 +71,9 @@ class CartService:
 
     async def delete_from_cart(self, user_id: int, product_id: int):
         await self.cart_repo.delete_from_cart(user_id=user_id, product_id=product_id)
+        await self.inventory_service.release_product(
+            user_id=user_id, product_id=product_id
+        )
 
     async def clear_cart(self, user_id: int):
         await self.cart_repo.clear_cart(user_id=user_id)
