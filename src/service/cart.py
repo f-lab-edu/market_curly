@@ -6,6 +6,7 @@ from src.models.repository import (
     ProductRepository,
 )
 from src.schema.response import CartResponse
+from src.service.inventory import InventoryService
 
 
 class CartService:
@@ -14,10 +15,12 @@ class CartService:
         cart_repo: CartRepository = Depends(CartRepository),
         es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository),
         product_repo: ProductRepository = Depends(ProductRepository),
+        inventory_service: InventoryService = Depends(InventoryService),
     ):
         self.cart_repo = cart_repo
         self.es_repo = es_repo
         self.product_repo = product_repo
+        self.inventory_service = inventory_service
 
     async def add_to_cart(self, user_id: int, product_id: int, quantity: int) -> dict:
         # 1. MySQL에서 재고 확인
@@ -36,7 +39,19 @@ class CartService:
                 "message": "Insufficient stock",
             }
 
-        # 2. 장바구니에 상품 추가 로직 호출
+        # 2. 재고가 10개 이하일 때 Redis에서 예약 관리
+        if stock <= 10:
+            reservation_result = await self.inventory_service.reserve_product(
+                user_id=user_id, product_id=product_id, quantity=quantity, stock=stock
+            )
+            if not reservation_result:
+                return {
+                    "is_success": False,
+                    "status_code": 503,
+                    "message": "Service temporarily unavailable. Please try again later.",
+                }
+
+        # 3. 장바구니에 상품 추가 로직 호출
         await self.cart_repo.add_product(
             user_id=user_id, product_id=product_id, quantity=quantity
         )
