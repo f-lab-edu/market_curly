@@ -76,4 +76,14 @@ class CartService:
         )
 
     async def clear_cart(self, user_id: int):
+        cart_data = await self.cart_repo.get_cart(user_id=user_id)
+        for product_id, quantity in cart_data.items():
+            reservation_key = self.inventory_service.generate_reservation_key(
+                product_id=product_id
+            )
+            if await self.inventory_service.redis.exists(reservation_key):
+                await self.inventory_service.release_product(
+                    user_id=user_id, product_id=product_id
+                )
+
         await self.cart_repo.clear_cart(user_id=user_id)
