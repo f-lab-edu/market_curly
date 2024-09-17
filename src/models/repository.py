@@ -239,18 +239,21 @@ class CartRepository:
     def __init__(self, redis: Redis = Depends(get_redis_client)):
         self.redis = redis
 
+    def generate_cart_key(self, user_id: int) -> str:
+        return f"cart:{user_id}"
+
     async def add_product(self, user_id: int, product_id: int, quantity: int):
-        cart_key = f"cart:{user_id}"
+        cart_key = self.generate_cart_key(user_id=user_id)
         await self.redis.hset(cart_key, product_id, quantity)
 
     async def get_cart(self, user_id: str) -> dict:
-        cart_key = f"cart:{user_id}"
+        cart_key = self.generate_cart_key(user_id=user_id)
         return await self.redis.hgetall(cart_key)
 
     async def delete_from_cart(self, user_id: str, product_id: int):
-        cart_key = f"cart:{user_id}"
+        cart_key = self.generate_cart_key(user_id=user_id)
         await self.redis.hdel(cart_key, product_id)
 
     async def clear_cart(self, user_id: str):
-        cart_key = f"cart:{user_id}"
+        cart_key = self.generate_cart_key(user_id=user_id)
         await self.redis.delete(cart_key)
