@@ -24,6 +24,10 @@ class InventoryService:
             print(f"Redis error occurred: {e}")
             return False
 
+    async def is_product_reserved(self, product_id: int) -> bool:
+        reservation_key = self.generate_reservation_key(product_id=product_id)
+        return await self.redis.exists(reservation_key)
+
     async def reserve_product(
         self, user_id: int, product_id: int, quantity: int, stock: int
     ) -> bool:
@@ -46,9 +50,8 @@ class InventoryService:
         return True
 
     async def release_product(self, user_id: int, product_id: int):
-        reservation_key = self.generate_reservation_key(product_id=product_id)
-
-        if await self.redis.exists(reservation_key):
+        if await self.is_product_reserved(product_id=product_id):
+            reservation_key = self.generate_reservation_key(product_id=product_id)
             all_slots = await self.redis.hgetall(reservation_key)
             user_slots = [
                 slot for slot, value in all_slots.items() if value == str(user_id)
