@@ -27,13 +27,34 @@ async def create_product_handler(
     )
     user: User = await user_repo.get_user_by_id(user_id=user_id)
 
-    request_data = request.model_dump(exclude_unset=True)
+    request_data: dict = request.model_dump(exclude_unset=True)
     product: Product = Product(seller_id=user.seller.id, **request_data)
     created_product: Product = await product_repo.create_product(product)
 
-    product_info = created_product.model_dump()
+    created_product: Product = await product_repo.fetch_product(created_product.id)
+    product_info: dict = created_product.model_dump()
+
+    ##### 필요한 추가 정보 입력 #####
+    # 1. 판매자 정보 : 브랜드명, 전화번호
     product_info["brand_name"] = created_product.seller.brand_name
-    await asyncio.create_task(add_product_to_stream(product_info=product_info))
+    product_info["contact_number"] = created_product.seller.contact_number
+    # 2. 카테고리 정보 : 종류별(대/중/소) 카테고리 ID, 카테고리명
+    # 소분류 (id는 상품 정보에 category_id 필드로 이미 포함되어 있음)
+    product_info["category_3"] = created_product.category.name
+    # 중분류
+    product_info["category_id_2"] = created_product.category.secondary_category.id
+    product_info["category_2"] = created_product.category.secondary_category.name
+    # 대분류
+    product_info[
+        "category_id_1"
+    ] = created_product.category.secondary_category.primary_category.id
+    product_info[
+        "category_1"
+    ] = created_product.category.secondary_category.primary_category.name
+
+    await asyncio.create_task(
+        add_product_to_stream(product_info=product_info, action_type="create")
+    )
 
     return GetProductResponse(
         id=created_product.id,
@@ -113,6 +134,11 @@ async def update_product_handler(
                 setattr(product, key, value)
 
         updated_product: Product = await product_repo.update_product(product)
+        request_data["id"] = updated_product.id
+        await asyncio.create_task(
+            add_product_to_stream(product_info=request_data, action_type="update")
+        )
+
         return GetProductResponse(
             id=updated_product.id,
             product_name=updated_product.product_name,
@@ -148,3 +174,8 @@ async def delete_product_handler(
     )
 
     await product_repo.delete_product(product)
+    await asyncio.create_task(
+        add_product_to_stream(
+            product_info={"id": product_id, "use_status": False}, action_type="delete"
+        )
+    )

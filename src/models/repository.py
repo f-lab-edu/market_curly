@@ -89,9 +89,27 @@ class ProductRepository:
     async def fetch_all_products(self) -> List[Product]:
         async with self.session as session:
             result = await session.exec(
-                select(Product).options(selectinload(Product.seller))
+                select(Product).options(
+                    joinedload(Product.seller),
+                    selectinload(Product.category)
+                    .joinedload(TertiaryCategory.secondary_category)
+                    .joinedload(SecondaryCategory.primary_category),
+                )
             )
             return list(result.all())
+
+    async def fetch_product(self, product_id: int) -> Product:
+        result = await self.session.exec(
+            select(Product)
+            .where(Product.id == product_id)
+            .options(
+                joinedload(Product.seller),
+                selectinload(Product.category)
+                .joinedload(TertiaryCategory.secondary_category)
+                .joinedload(SecondaryCategory.primary_category),
+            )
+        )
+        return result.one_or_none()
 
 
 class UserRepository:
@@ -129,26 +147,75 @@ class ElasticsearchRepository:
         self.es = es
 
     async def search_products(self, keyword: str) -> List[dict]:
+        def get_search_query(keyword: str) -> dict:
+            return {
+                "bool": {
+                    "should": [
+                        {
+                            "multi_match": {
+                                "query": keyword,
+                                "fields": ["product_name", "brand_name", "ingredient"],
+                                "fuzziness": "AUTO",
+                            }
+                        },
+                        {"match_phrase_prefix": {"product_name": keyword}},
+                        {"match_phrase_prefix": {"brand_name": keyword}},
+                        {"match_phrase_prefix": {"ingredient": keyword}},
+                    ]
+                }
+            }
+
+        def get_filter_query() -> dict:
+            return {"term": {"use_status": True}}
+
+        query = {
+            "query": {
+                "bool": {
+                    "must": [get_search_query(keyword)],
+                    "filter": [get_filter_query()],
+                }
+            },
+            "sort": [{"id": {"order": "desc"}}],
+        }
+
+        response = await self.es.search(index="products", body=query)
+        return [hit["_source"] for hit in response["hits"]["hits"]]
+
+    async def get_product_by_id(self, product_id: str) -> dict:
+        response = await self.es.get(index="products", id=product_id)
+        return response["_source"] if response["found"] else None
+
+    async def get_product_list(self) -> List[dict]:
+        response = await self.es.search(
+            index="products",
+            body={
+                "query": {"bool": {"filter": [{"term": {"use_status": True}}]}},
+                "sort": [{"id": {"order": "desc"}}],
+            },
+        )
+        return [hit["_source"] for hit in response["hits"]["hits"]]
+
+    async def get_product_list_by_category(
+        self, category_type: str, category_id: str
+    ) -> List[dict]:
+        # 카테고리별 필드 설정 (대분류, 중분류, 소분류)
+        category_field = {
+            "primary": "category_id_1",  # 대분류
+            "secondary": "category_id_2",  # 중분류
+            "tertiary": "category_id",  # 소분류
+        }.get(category_type)
+
+        if category_field is None:
+            return None
+
         response = await self.es.search(
             index="products",
             body={
                 "query": {
                     "bool": {
-                        "should": [
-                            {
-                                "multi_match": {
-                                    "query": keyword,
-                                    "fields": [
-                                        "product_name",
-                                        "brand_name",
-                                        "ingredient",
-                                    ],
-                                    "fuzziness": "AUTO",
-                                }
-                            },
-                            {"match_phrase_prefix": {"product_name": keyword}},
-                            {"match_phrase_prefix": {"brand_name": keyword}},
-                            {"match_phrase_prefix": {"ingredient": keyword}},
+                        "filter": [
+                            {"term": {category_field: category_id}},  # 카테고리 필드로 필터링
+                            {"term": {"use_status": True}},
                         ]
                     }
                 },

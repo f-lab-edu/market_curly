@@ -34,6 +34,13 @@ async def process_tasks():
                         if data:
                             product_info = json.loads(data)
                             await sync_product_to_elasticsearch(product_info)
+                    elif task_type == "sync_product_action":
+                        data = message_data.get("data")
+                        if data:
+                            product_info = json.loads(data)
+                            await update_or_delete_product_to_elasticsearch(
+                                product_info
+                            )
                     elif task_type == "send_email":
                         data = message_data.get("data")
                         if data:
@@ -48,10 +55,16 @@ async def process_tasks():
         await asyncio.sleep(1)  # 잠시 대기 후 다음 메시지 확인
 
 
-async def add_product_to_stream(product_info: dict):
-    await task_redis.xadd(
-        "task_stream", {"type": "sync_product", "data": json.dumps(product_info)}
-    )
+async def add_product_to_stream(product_info: dict, action_type: str):
+    if action_type == "create":
+        await task_redis.xadd(
+            "task_stream", {"type": "sync_product", "data": json.dumps(product_info)}
+        )
+    elif action_type == "update" or action_type == "delete":
+        await task_redis.xadd(
+            "task_stream",
+            {"type": "sync_product_action", "data": json.dumps(product_info)},
+        )
 
 
 async def add_email_to_stream(user_info: dict):
@@ -70,6 +83,18 @@ async def sync_product_to_elasticsearch(product_info: dict):
         )
     except Exception as e:
         print(f"Error syncing product to Elasticsearch: {e}")
+
+
+async def update_or_delete_product_to_elasticsearch(product_info: dict):
+    try:
+        await es.update(
+            index="products",
+            id=product_info["id"],
+            body={"doc": product_info},
+            refresh="wait_for",
+        )
+    except Exception as e:
+        print(f"Error updating or deleting product to Elasticsearch: {e}")
 
 
 async def send_email(email: str, name: str):
