@@ -257,3 +257,8 @@ class CartRepository:
     async def clear_cart(self, user_id: str):
         cart_key = self.generate_cart_key(user_id=user_id)
         await self.redis.delete(cart_key)
+
+    async def get_product_quantity_in_cart(self, user_id: int, product_id: int) -> int:
+        cart_key = self.generate_cart_key(user_id=user_id)
+        quantity = await self.redis.hget(cart_key, product_id)
+        return int(quantity) if quantity else 0

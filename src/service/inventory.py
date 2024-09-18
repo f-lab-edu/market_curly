@@ -28,25 +28,24 @@ class InventoryService:
         reservation_key = self.generate_reservation_key(product_id=product_id)
         return await self.redis.exists(reservation_key)
 
-    async def reserve_product(
-        self, user_id: int, product_id: int, quantity: int, stock: int
-    ) -> bool:
+    async def get_empty_reservation_slots(self, product_id: int) -> list:
         reservation_key = self.generate_reservation_key(product_id=product_id)
+        all_slots = await self.redis.hgetall(reservation_key)
+        empty_slots = [slot for slot, value in all_slots.items() if value == ""]
+        return empty_slots
 
-        if not await self.redis.exists(reservation_key):
-            if not await self.create_reservation_slots(
-                product_id=product_id, stock=stock
-            ):
-                return False
+    async def reserve_product(
+        self, user_id: int, product_id: int, quantity: int
+    ) -> bool:
+        empty_slots = await self.get_empty_reservation_slots(product_id=product_id)
+        if len(empty_slots) < quantity:
+            return False
 
-        reserved_items = []
-        for i in range(1, quantity + 1):
-            item_key = await self.redis.hget(reservation_key, str(i))
-            if item_key == "":  # 예약 가능
-                await self.redis.hset(reservation_key, str(i), user_id)
-                reserved_items.append(i)
-            else:
-                return False
+        reservation_key = self.generate_reservation_key(product_id=product_id)
+        for i in range(quantity):
+            slot = empty_slots[i]
+            await self.redis.hset(reservation_key, slot, user_id)
+
         return True
 
     async def release_product(self, user_id: int, product_id: int):
