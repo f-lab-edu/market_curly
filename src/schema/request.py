@@ -60,3 +60,7 @@ class LoginUserRequest(BaseModel):
 class AddToCartRequest(BaseModel):
     product_id: int
     quantity: int
+
+
+class UpdateCartRequest(BaseModel):
+    quantity: int

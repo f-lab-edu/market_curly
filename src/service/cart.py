@@ -133,3 +133,53 @@ class CartService:
                 )
 
         await self.cart_repo.clear_cart(user_id=user_id)
+
+    async def update_cart_quantity(
+        self, user_id: int, product_id: int, quantity: int
+    ) -> dict:
+        if quantity == 0:
+            await self.cart_repo.delete_from_cart(
+                user_id=user_id, product_id=product_id
+            )
+            return {"is_success": True, "message": "Product removed from cart"}
+
+        current_quantity: int = await self.cart_repo.get_product_quantity_in_cart(
+            user_id=user_id, product_id=product_id
+        )
+        if current_quantity == 0:
+            return {
+                "is_success": False,
+                "status_code": 400,
+                "message": "Product not in cart",
+            }
+
+        if quantity < current_quantity:
+            quantity_to_release = current_quantity - quantity
+
+            if await self.inventory_service.is_product_reserved(product_id=product_id):
+                is_release_result = (
+                    await self.inventory_service.release_partial_product(
+                        user_id=user_id,
+                        product_id=product_id,
+                        quantity_to_release=quantity_to_release,
+                    )
+                )
+
+                if not is_release_result:
+                    return {
+                        "is_success": False,
+                        "status_code": 503,
+                        "message": "Slot release failed. Please try again later.",
+                    }
+
+            await self.cart_repo.add_product(
+                user_id=user_id, product_id=product_id, quantity=quantity
+            )
+
+        elif quantity > current_quantity:
+            additional_quantity = quantity - current_quantity
+            return await self.add_to_cart(
+                user_id=user_id, product_id=product_id, quantity=additional_quantity
+            )
+
+        return {"is_success": True, "message": "Cart updated successfully"}

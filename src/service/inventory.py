@@ -58,3 +58,23 @@ class InventoryService:
 
             for slot_number in user_slots:
                 await self.redis.hset(reservation_key, slot_number, "")
+
+    async def release_partial_product(
+        self, user_id: int, product_id: int, quantity_to_release: int
+    ) -> bool:
+        if await self.is_product_reserved(product_id=product_id):
+            reservation_key = self.generate_reservation_key(product_id=product_id)
+            all_slots = await self.redis.hgetall(reservation_key)
+            user_slots = [
+                slot for slot, value in all_slots.items() if value == str(user_id)
+            ]
+
+            if len(user_slots) < quantity_to_release:
+                return False  # 해제하려는 수량이 예약된 수량보다 많으면 실패
+
+            for slot in user_slots[:quantity_to_release]:
+                await self.redis.hset(reservation_key, slot, "")
+
+            return True
+
+        return False
