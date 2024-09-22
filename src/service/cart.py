@@ -141,6 +141,10 @@ class CartService:
             await self.cart_repo.delete_from_cart(
                 user_id=user_id, product_id=product_id
             )
+            if await self.inventory_service.is_product_reserved(product_id=product_id):
+                await self.inventory_service.release_product(
+                    user_id=user_id, product_id=product_id
+                )
             return {"is_success": True, "message": "Product removed from cart"}
 
         current_quantity: int = await self.cart_repo.get_product_quantity_in_cart(
