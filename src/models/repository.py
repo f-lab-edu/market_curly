@@ -2,6 +2,7 @@ from typing import List, Optional, TypeVar
 
 from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
+from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload, selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,6 +16,7 @@ from src.models.product import (
     TertiaryCategory,
 )
 from src.models.user import Seller, User
+from src.redis_client import get_redis_client
 
 T = TypeVar("T", bound=SQLModel)
 
@@ -107,6 +109,14 @@ class ProductRepository:
                 selectinload(Product.category)
                 .joinedload(TertiaryCategory.secondary_category)
                 .joinedload(SecondaryCategory.primary_category),
+            )
+        )
+        return result.one_or_none()
+
+    async def get_product_stock(self, product_id: int) -> Optional[int]:
+        result = await self.session.exec(
+            select(Product.inventory_quantity).where(
+                Product.id == product_id, Product.use_status == True
             )
         )
         return result.one_or_none()
@@ -223,3 +233,32 @@ class ElasticsearchRepository:
             },
         )
         return [hit["_source"] for hit in response["hits"]["hits"]]
+
+
+class CartRepository:
+    def __init__(self, redis: Redis = Depends(get_redis_client)):
+        self.redis = redis
+
+    def generate_cart_key(self, user_id: int) -> str:
+        return f"cart:{user_id}"
+
+    async def add_product(self, user_id: int, product_id: int, quantity: int):
+        cart_key = self.generate_cart_key(user_id=user_id)
+        await self.redis.hset(cart_key, product_id, quantity)
+
+    async def get_cart(self, user_id: str) -> dict:
+        cart_key = self.generate_cart_key(user_id=user_id)
+        return await self.redis.hgetall(cart_key)
+
+    async def delete_from_cart(self, user_id: str, product_id: int):
+        cart_key = self.generate_cart_key(user_id=user_id)
+        await self.redis.hdel(cart_key, product_id)
+
+    async def clear_cart(self, user_id: str):
+        cart_key = self.generate_cart_key(user_id=user_id)
+        await self.redis.delete(cart_key)
+
+    async def get_product_quantity_in_cart(self, user_id: int, product_id: int) -> int:
+        cart_key = self.generate_cart_key(user_id=user_id)
+        quantity = await self.redis.hget(cart_key, product_id)
+        return int(quantity) if quantity else 0

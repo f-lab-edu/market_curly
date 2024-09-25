@@ -68,3 +68,11 @@ class GetBuyerInfoResponse(BaseModel):
     name: str
     phone_number: str
     address: str
+
+
+class CartResponse(BaseModel):
+    product_id: int
+    product_name: str
+    price: int
+    discounted_price: int
+    quantity: int

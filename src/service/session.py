@@ -29,3 +29,6 @@ class SessionService:
 
     async def delete_session(self, session_id: str):
         await self.redis_client.delete(session_id)
+
+    async def extend_session(self, session_id: str, ttl: int = 3600):
+        await self.redis_client.expire(session_id, ttl)
