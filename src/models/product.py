@@ -1,6 +1,9 @@
+from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import Column, Text
+from sqlalchemy import Column
+from sqlalchemy import Enum as SqlEnum
+from sqlalchemy import Text
 from sqlmodel import Field, Relationship, SQLModel
 
 from src.models.user import Seller
@@ -73,3 +76,20 @@ class Product(SQLModel, table=True):
 
     category: "TertiaryCategory" = Relationship(back_populates="products")
     seller: "Seller" = Relationship(back_populates="products")
+    stocks: List["Stock"] = Relationship(back_populates="product")
+
+
+class StatusType(str, Enum):
+    AVAILABLE = "AVAILABLE"
+    RESERVED = "RESERVED"
+    SOLD = "SOLD"
+
+
+class Stock(SQLModel, table=True):
+    __tablename__ = "stocks"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    product_id: int = Field(foreign_key="products.id")
+    status: StatusType = Field(sa_column=Column(SqlEnum(StatusType), nullable=False))
+
+    product: "Product" = Relationship(back_populates="stocks")
