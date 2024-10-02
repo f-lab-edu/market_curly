@@ -153,10 +153,14 @@ class CartService:
         return cart_response
 
     async def delete_from_cart(self, user_id: int, product_id: int):
-        await self.cart_repo.delete_from_cart(user_id=user_id, product_id=product_id)
-        await self.inventory_service.release_product(
+        quantity = await self.cart_repo.get_product_quantity_in_cart(
             user_id=user_id, product_id=product_id
         )
+        await self.cart_repo.delete_from_cart(user_id=user_id, product_id=product_id)
+        stocks: list = await self.stock_repo.get_reserved_stock_by_quantity(
+            product_id=product_id, quantity=quantity
+        )
+        await self.stock_repo.release_reserved_stocks(stocks=stocks)
 
     async def clear_cart(self, user_id: int):
         cart_data = await self.cart_repo.get_cart(user_id=user_id)
