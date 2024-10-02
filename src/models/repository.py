@@ -4,7 +4,7 @@ from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload, selectinload
-from sqlmodel import SQLModel, select
+from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.apis.dependencies import get_session
@@ -135,6 +135,14 @@ class StockRepository:
         ]
         self.session.add_all(stock_list)
         await self.session.commit()
+
+    async def count_stocks_by_product_id(self, product_id: int):
+        result = await self.session.exec(
+            select(func.count(Stock.id)).where(
+                Stock.product_id == product_id, Stock.status == StatusType.AVAILABLE
+            )
+        )
+        return result.one_or_none()
 
 
 class UserRepository:

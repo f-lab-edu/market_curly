@@ -72,6 +72,7 @@ async def create_product_handler(
 async def get_product_by_id_handler(
     product_id: int,
     product_repo: ProductRepository = Depends(ProductRepository),
+    stock_repo: StockRepository = Depends(StockRepository),
     user_repo: UserRepository = Depends(UserRepository),
     session_id: str = Cookie(None),
     session_service: SessionService = Depends(),
@@ -85,6 +86,8 @@ async def get_product_by_id_handler(
     user: User = await user_repo.get_user_by_id(user_id=user_id)
 
     product: Product | None = await product_repo.get_product_by_id(product_id)
+
+    quantity = await stock_repo.count_stocks_by_product_id(product_id=product.id)
 
     if product is None:
         raise HTTPException(status_code=404, detail="Product Not Found")
@@ -105,7 +108,7 @@ async def get_product_by_id_handler(
         how_to_use=product.how_to_use,
         ingredient=product.ingredient,
         caution=product.caution,
-        inventory_quantity=product.inventory_quantity,
+        inventory_quantity=quantity,
         use_status=product.use_status,
     )
 
