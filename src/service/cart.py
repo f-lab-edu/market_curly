@@ -165,10 +165,10 @@ class CartService:
     async def clear_cart(self, user_id: int):
         cart_data = await self.cart_repo.get_cart(user_id=user_id)
         for product_id, quantity in cart_data.items():
-            if await self.inventory_service.is_product_reserved(product_id=product_id):
-                await self.inventory_service.release_product(
-                    user_id=user_id, product_id=product_id
-                )
+            stocks: list = await self.stock_repo.get_reserved_stock_by_quantity(
+                product_id=product_id, quantity=quantity
+            )
+            await self.stock_repo.release_reserved_stocks(stocks=stocks)
 
         await self.cart_repo.clear_cart(user_id=user_id)
 
