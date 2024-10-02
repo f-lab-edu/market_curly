@@ -3,7 +3,7 @@ import asyncio
 from fastapi import Cookie, Depends, HTTPException
 
 from src.models.product import Product
-from src.models.repository import ProductRepository, UserRepository
+from src.models.repository import ProductRepository, StockRepository, UserRepository
 from src.models.user import User
 from src.schema.request import CreateProductRequest, UpdateProductRequest
 from src.schema.response import GetProductDetailResponse, GetProductResponse
@@ -15,6 +15,7 @@ from src.service.session import SessionService
 async def create_product_handler(
     request: CreateProductRequest,
     product_repo: ProductRepository = Depends(ProductRepository),
+    stock_repo: StockRepository = Depends(StockRepository),
     user_repo: UserRepository = Depends(UserRepository),
     session_id: str = Cookie(None),
     session_service: SessionService = Depends(),
@@ -56,11 +57,15 @@ async def create_product_handler(
         add_product_to_stream(product_info=product_info, action_type="create")
     )
 
+    await stock_repo.create_stocks(
+        product_id=product_info["id"], quantity=product_info["inventory_quantity"]
+    )
+
     return GetProductResponse(
-        id=created_product.id,
-        product_name=created_product.product_name,
-        price=created_product.price,
-        discounted_price=created_product.discounted_price,
+        id=product_info["id"],
+        product_name=product_info["product_name"],
+        price=product_info["price"],
+        discounted_price=product_info["discounted_price"],
     )
 
 

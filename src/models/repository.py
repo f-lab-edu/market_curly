@@ -13,6 +13,8 @@ from src.models.product import (
     PrimaryCategory,
     Product,
     SecondaryCategory,
+    StatusType,
+    Stock,
     TertiaryCategory,
 )
 from src.models.user import Seller, User
@@ -120,6 +122,19 @@ class ProductRepository:
             )
         )
         return result.one_or_none()
+
+
+class StockRepository:
+    def __init__(self, session: AsyncSession = Depends(get_session)):
+        self.session = session
+
+    async def create_stocks(self, product_id: int, quantity: int):
+        stock_list = [
+            Stock(product_id=product_id, status=StatusType.AVAILABLE)
+            for _ in range(quantity)
+        ]
+        self.session.add_all(stock_list)
+        await self.session.commit()
 
 
 class UserRepository:
