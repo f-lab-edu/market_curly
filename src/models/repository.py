@@ -293,10 +293,15 @@ class CartRepository:
     def generate_cart_key(self, user_id: int) -> str:
         return f"cart:{user_id}"
 
-    async def add_product(self, user_id: int, product_id: int, quantity: int):
-        product_key = self.generate_cart_key(user_id=user_id) + f":{product_id}"
+    async def add_product(
+        self, user_id: int, product_id: int, quantity: int, action=None
+    ):
+        cart_key = self.generate_cart_key(user_id=user_id)
+        product_key = cart_key + f":{product_id}"
         await self.redis.hset(product_key, mapping={"quantity": quantity})
-        await self.redis.expire(product_key, 86400)  # 상품별 TTL 설정 24시간
+        # await self.redis.expire(product_key, 86400)  # 상품별 TTL 설정 24시간
+        await self.redis.expire(product_key, 60)  # 상품별 TTL 설정 2분
+        await self.redis.hset(cart_key, product_id, quantity)
 
     async def get_cart_product_keys(self, user_id: str) -> list:
         cart_key = self.generate_cart_key(user_id=user_id) + ":*"
@@ -304,11 +309,15 @@ class CartRepository:
         return keys
 
     async def delete_from_cart(self, user_id: str, product_id: int):
-        product_key = self.generate_cart_key(user_id=user_id) + f":{product_id}"
+        cart_key = self.generate_cart_key(user_id=user_id)
+        product_key = cart_key + f":{product_id}"
         await self.redis.delete(product_key)
+        await self.redis.hdel(cart_key, product_id)
 
-    async def clear_cart(self, keys: list):
+    async def clear_cart(self, keys: list, user_id: int):
+        cart_key = self.generate_cart_key(user_id=user_id)
         await self.redis.delete(*keys)
+        await self.redis.delete(cart_key)
 
     async def get_product_quantity_in_cart(self, user_id: int, product_id: int) -> int:
         product_key = self.generate_cart_key(user_id=user_id) + f":{product_id}"

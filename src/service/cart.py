@@ -167,7 +167,7 @@ class CartService:
     async def clear_cart(self, user_id: int):
         product_keys = await self.cart_repo.get_cart_product_keys(user_id=user_id)
         for key in product_keys:
-            product_id = key.split(":")[2]
+            product_id = key.split(":")[-1]
             quantity = await self.cart_repo.get_product_quantity_in_cart(
                 user_id=user_id, product_id=product_id
             )
@@ -176,7 +176,7 @@ class CartService:
             )
             await self.stock_repo.release_reserved_stocks(stocks=stocks)
 
-        await self.cart_repo.clear_cart(keys=product_keys)
+        await self.cart_repo.clear_cart(keys=product_keys, user_id=user_id)
 
     async def update_cart_quantity(
         self, user_id: int, product_id: int, quantity: int

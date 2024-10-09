@@ -6,11 +6,15 @@ from email.mime.text import MIMEText
 
 from aiosmtplib import SMTP
 
+from src.apis.dependencies import get_session
 from src.elastic_client import get_elasticsearch_client
-from src.redis_client import get_task_redis_client
+from src.models.repository import StockRepository
+from src.redis_client import get_redis_client, get_task_redis_client
 
 task_redis = get_task_redis_client()
 es = get_elasticsearch_client()
+cart_redis = get_redis_client()
+stock_repo = StockRepository(get_session())
 
 
 async def process_tasks():
@@ -119,3 +123,51 @@ async def send_email(email: str, name: str):
         print(f"Email sent to {email}")
     except Exception as e:
         print(f"Error sending email: {e}")
+
+
+async def listen_to_expired_keys():
+    async with cart_redis.pubsub() as pubsub:
+        await pubsub.subscribe("__keyevent@0__:expired")
+
+        while True:
+            message = await pubsub.get_message(ignore_subscribe_messages=True)
+            if message is None:
+                await asyncio.sleep(0.1)
+                continue
+
+            if message and "data" in message:
+                expired_key_data = message["data"].split(":")
+                user_id = expired_key_data[1]
+                product_id = expired_key_data[-1]
+
+                quantity = await cart_redis.hget(f"cart:{user_id}", product_id)
+                await cart_redis.hdel(f"cart:{user_id}", product_id)
+
+                # Redis stream 사용할 경우
+                # await cart_redis.xadd(
+                #     "cart_stream",
+                #     {"product_id": product_id, "quantity": quantity}
+                # )
+
+                # 여기서 문제 발생함
+                stocks = await stock_repo.get_reserved_stock_by_quantity(
+                    product_id, int(quantity)
+                )
+                await stock_repo.release_reserved_stocks(stocks)
+
+
+# Redis Stream 사용할 경우 이어서
+# async def process_expired_cart_messages():
+#     while True:
+#         message = await cart_redis.xread({"cart_stream": "0"}, count=1, block=5000)
+#         if message:
+#             stream, data = message[0]
+#             message_id, fields = data[0]
+#             product_id = fields["product_id"]
+#             quantity = fields["quantity"]
+#
+#             stocks = await stock_repo.get_reserved_stock_by_quantity(product_id, quantity)
+#             await stock_repo.release_reserved_stocks(stocks)
+#             await cart_redis.xdel("cart_stream", message_id)
+#
+#         await asyncio.sleep(0.1)
