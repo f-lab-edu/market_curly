@@ -26,37 +26,50 @@ class CartService:
         self.inventory_service = inventory_service
 
     async def add_to_cart(self, user_id: int, product_id: int, quantity: int) -> dict:
-        stocks_count: int = await self.stock_repo.count_stocks_by_product_id(
-            product_id=product_id
-        )
-
-        if stocks_count >= quantity:
-            current_quantity: int = await self.cart_repo.get_product_quantity_in_cart(
-                user_id=user_id, product_id=product_id
+        try:
+            stocks_count: int = await self.stock_repo.count_stocks_by_product_id(
+                product_id=product_id
             )
+            total_in_cart = await self.cart_repo.total_stocks_in_cart(
+                product_id=product_id
+            )
+            available_stock = stocks_count - total_in_cart
 
-            if current_quantity:
-                total_quantity = current_quantity + quantity
-                await self.cart_repo.add_product(
-                    user_id=user_id, product_id=product_id, quantity=total_quantity
+            if available_stock >= quantity:
+                current_quantity: int = (
+                    await self.cart_repo.get_product_quantity_in_cart(
+                        user_id=user_id, product_id=product_id
+                    )
                 )
+
+                if current_quantity:
+                    total_quantity = current_quantity + quantity
+                    await self.cart_repo.add_product(
+                        user_id=user_id, product_id=product_id, quantity=total_quantity
+                    )
+                else:
+                    await self.cart_repo.add_product(
+                        user_id=user_id, product_id=product_id, quantity=quantity
+                    )
+
+                return {
+                    "is_success": True,
+                    "message": "Goods added to cart successfully",
+                }
             else:
-                await self.cart_repo.add_product(
-                    user_id=user_id, product_id=product_id, quantity=quantity
-                )
+                return {
+                    "is_success": False,
+                    "status_code": 400,
+                    "message": f"Quantity requested ({quantity}) exceeds available stock ({available_stock}).",
+                }
 
-            stocks: list = await self.stock_repo.get_available_stock_by_quantity(
-                product_id=product_id, quantity=quantity
-            )
-            await self.stock_repo.reserve_stocks(stocks=stocks)
-
-            return {"is_success": True, "message": "Goods added to cart successfully"}
-        else:
+        except Exception as e:
             return {
                 "is_success": False,
-                "status_code": 400,
-                "message": "Quantity requested is more than available",
+                "status_code": 500,
+                "message": f"An error occurred: {str(e)}",
             }
+
         # # 1. 예약 관리 여부 확인
         # if await self.inventory_service.is_product_reserved(product_id=product_id):
         #     # 2. 예약 관리 중일 때 예약 슬롯 확인
@@ -176,7 +189,7 @@ class CartService:
             )
             await self.stock_repo.release_reserved_stocks(stocks=stocks)
 
-        await self.cart_repo.clear_cart(keys=product_keys, user_id=user_id)
+        await self.cart_repo.clear_cart(keys=product_keys)
 
     async def update_cart_quantity(
         self, user_id: int, product_id: int, quantity: int

@@ -290,36 +290,43 @@ class CartRepository:
     def __init__(self, redis: Redis = Depends(get_redis_client)):
         self.redis = redis
 
-    def generate_cart_key(self, user_id: int) -> str:
+    @staticmethod
+    def generate_cart_key(user_id: int) -> str:
         return f"cart:{user_id}"
 
-    async def add_product(
-        self, user_id: int, product_id: int, quantity: int, action=None
-    ):
-        cart_key = self.generate_cart_key(user_id=user_id)
-        product_key = cart_key + f":{product_id}"
-        await self.redis.hset(product_key, mapping={"quantity": quantity})
-        # await self.redis.expire(product_key, 86400)  # 상품별 TTL 설정 24시간
-        await self.redis.expire(product_key, 60)  # 상품별 TTL 설정 2분
-        await self.redis.hset(cart_key, product_id, quantity)
+    @staticmethod
+    def generate_product_key_in_cart(user_id: int, product_id: int) -> str:
+        return f"cart:{user_id}:{product_id}"
 
-    async def get_cart_product_keys(self, user_id: str) -> list:
+    async def add_product(self, user_id: int, product_id: int, quantity: int):
+        key = self.generate_product_key_in_cart(user_id=user_id, product_id=product_id)
+        await self.redis.hset(key, mapping={"quantity": quantity})
+        # await self.redis.expire(key, 86400)  # 상품별 TTL 설정 24시간
+        await self.redis.expire(key, 60)  # 상품별 TTL 설정 2분
+
+    async def get_cart_product_keys(self, user_id: int) -> list:
         cart_key = self.generate_cart_key(user_id=user_id) + ":*"
         keys = await self.redis.keys(cart_key)
         return keys
 
-    async def delete_from_cart(self, user_id: str, product_id: int):
-        cart_key = self.generate_cart_key(user_id=user_id)
-        product_key = cart_key + f":{product_id}"
-        await self.redis.delete(product_key)
-        await self.redis.hdel(cart_key, product_id)
+    async def delete_from_cart(self, user_id: int, product_id: int):
+        key = self.generate_product_key_in_cart(user_id=user_id, product_id=product_id)
+        await self.redis.delete(key)
 
-    async def clear_cart(self, keys: list, user_id: int):
-        cart_key = self.generate_cart_key(user_id=user_id)
+    async def clear_cart(self, keys: list):
         await self.redis.delete(*keys)
-        await self.redis.delete(cart_key)
 
     async def get_product_quantity_in_cart(self, user_id: int, product_id: int) -> int:
-        product_key = self.generate_cart_key(user_id=user_id) + f":{product_id}"
-        quantity = await self.redis.hget(product_key, "quantity")
-        return int(quantity) if quantity else 0
+        key = self.generate_product_key_in_cart(user_id=user_id, product_id=product_id)
+        quantity = await self.redis.hget(key, "quantity")
+        return int(quantity or 0)
+
+    async def total_stocks_in_cart(self, product_id: int) -> int:
+        keys = await self.redis.keys(f"cart:*:{product_id}")
+        quantities = 0
+
+        for key in keys:
+            quantity = await self.redis.hget(key, "quantity")
+            quantities += int(quantity or 0)
+
+        return quantities
