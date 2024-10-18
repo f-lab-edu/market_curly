@@ -298,6 +298,10 @@ class CartRepository:
     def generate_product_key_in_cart(user_id: int, product_id: int) -> str:
         return f"cart:{user_id}:{product_id}"
 
+    @staticmethod
+    def generate_reserve_key(user_id: int, product_id: int) -> str:
+        return f"reserve:{product_id}:{user_id}"
+
     async def add_product(self, user_id: int, product_id: int, quantity: int):
         key = self.generate_product_key_in_cart(user_id=user_id, product_id=product_id)
         await self.redis.hset(key, mapping={"quantity": quantity})
@@ -330,3 +334,30 @@ class CartRepository:
             quantities += int(quantity or 0)
 
         return quantities
+
+    async def product_reservation(self, user_id: int, product_id: int, quantity: int):
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        await self.redis.hincrby(key, "quantity", quantity)
+        await self.redis.expire(key, 60)
+
+    async def get_reserved_quantity(self, user_id: int, product_id: int) -> int:
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        reserved_quantity = await self.redis.hget(key, "quantity")
+        return int(reserved_quantity or 0)
+
+    async def cancel_reservation(self, user_id: int, product_id: int, quantity: int):
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        reserved_quantity = int(await self.redis.hget(key, "quantity"))
+
+        if reserved_quantity >= quantity:
+            updated_quantity = reserved_quantity - quantity
+            if updated_quantity > 0:
+                await self.redis.hset(key, "quantity", updated_quantity)
+            else:
+                await self.redis.delete(key)
+        else:
+            raise ValueError("Cannot cancel more than the reserved quantity.")
+
+    async def delete_reserve_key(self, user_id: int, product_id: int):
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        await self.redis.delete(key)
