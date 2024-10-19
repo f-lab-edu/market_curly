@@ -152,26 +152,6 @@ class StockRepository:
         )
         return result.all()
 
-    async def get_reserved_stock_by_quantity(self, product_id: int, quantity: int):
-        result = await self.session.exec(
-            select(Stock)
-            .where(Stock.product_id == product_id, Stock.status == StatusType.RESERVED)
-            .limit(quantity)
-        )
-        return result.all()
-
-    async def reserve_stocks(self, stocks: list):
-        for stock in stocks:
-            stock.status = StatusType.RESERVED
-            self.session.add(stock)
-        await self.session.commit()
-
-    async def release_reserved_stocks(self, stocks: list):
-        for stock in stocks:
-            stock.status = StatusType.AVAILABLE
-            self.session.add(stock)
-        await self.session.commit()
-
 
 class UserRepository:
     def __init__(self, session: AsyncSession = Depends(get_session)):

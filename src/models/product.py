@@ -81,7 +81,6 @@ class Product(SQLModel, table=True):
 
 class StatusType(str, Enum):
     AVAILABLE = "AVAILABLE"
-    RESERVED = "RESERVED"
     SOLD = "SOLD"
 
 
