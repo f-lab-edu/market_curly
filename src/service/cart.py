@@ -102,26 +102,25 @@ class CartService:
         return cart_response
 
     async def delete_from_cart(self, user_id: int, product_id: int):
-        quantity = await self.cart_repo.get_product_quantity_in_cart(
-            user_id=user_id, product_id=product_id
-        )
         await self.cart_repo.delete_from_cart(user_id=user_id, product_id=product_id)
-        stocks: list = await self.stock_repo.get_reserved_stock_by_quantity(
-            product_id=product_id, quantity=quantity
-        )
-        await self.stock_repo.release_reserved_stocks(stocks=stocks)
+
+        if await self.cart_repo.reserve_key_exists(
+            user_id=user_id, product_id=product_id
+        ):
+            await self.cart_repo.delete_reserve_key(
+                user_id=user_id, product_id=product_id
+            )
 
     async def clear_cart(self, user_id: int):
         product_keys = await self.cart_repo.get_cart_product_keys(user_id=user_id)
         for key in product_keys:
             product_id = key.split(":")[-1]
-            quantity = await self.cart_repo.get_product_quantity_in_cart(
+            if await self.cart_repo.reserve_key_exists(
                 user_id=user_id, product_id=product_id
-            )
-            stocks: list = await self.stock_repo.get_reserved_stock_by_quantity(
-                product_id=product_id, quantity=quantity
-            )
-            await self.stock_repo.release_reserved_stocks(stocks=stocks)
+            ):
+                await self.cart_repo.delete_reserve_key(
+                    user_id=user_id, product_id=product_id
+                )
 
         await self.cart_repo.clear_cart(keys=product_keys)
 
@@ -142,32 +141,24 @@ class CartService:
                 "message": "Product not in cart",
             }
 
-        if quantity < current_quantity:
-            quantity_to_release = current_quantity - quantity
-            stocks: list = await self.stock_repo.get_reserved_stock_by_quantity(
-                product_id=product_id, quantity=quantity_to_release
-            )
-            await self.stock_repo.release_reserved_stocks(stocks=stocks)
-
-        elif quantity > current_quantity:
-            additional_quantity = quantity - current_quantity
-            stocks_count: int = await self.stock_repo.count_stocks_by_product_id(
-                product_id=product_id
-            )
-            if stocks_count >= additional_quantity:
-                stocks: list = await self.stock_repo.get_available_stock_by_quantity(
-                    product_id=product_id, quantity=additional_quantity
+        if quantity == current_quantity:
+            return {"is_success": True, "message": "Quantity remains the same"}
+        elif quantity < current_quantity:
+            if await self.cart_repo.reserve_key_exists(
+                user_id=user_id, product_id=product_id
+            ):
+                await self.cart_repo.cancel_reservation(
+                    user_id=user_id, product_id=product_id, quantity=quantity
                 )
-                await self.stock_repo.reserve_stocks(stocks=stocks)
-            else:
-                return {
-                    "is_success": False,
-                    "status_code": 400,
-                    "message": "Quantity requested is more than available",
-                }
+        else:
+            if await self.cart_repo.reserve_key_exists(
+                user_id=user_id, product_id=product_id
+            ):
+                await self.cart_repo.product_reservation(
+                    user_id=user_id, product_id=product_id, quantity=quantity
+                )
 
         await self.cart_repo.add_product(
             user_id=user_id, product_id=product_id, quantity=quantity
         )
-
         return {"is_success": True, "message": "Cart updated successfully"}

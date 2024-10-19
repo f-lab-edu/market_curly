@@ -353,6 +353,7 @@ class CartRepository:
             updated_quantity = reserved_quantity - quantity
             if updated_quantity > 0:
                 await self.redis.hset(key, "quantity", updated_quantity)
+                await self.redis.expire(key, 60)
             else:
                 await self.redis.delete(key)
         else:
@@ -361,3 +362,7 @@ class CartRepository:
     async def delete_reserve_key(self, user_id: int, product_id: int):
         key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
         await self.redis.delete(key)
+
+    async def reserve_key_exists(self, user_id: int, product_id: int) -> bool:
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        return await self.redis.exists(key) == 1
