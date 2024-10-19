@@ -12,10 +12,7 @@ from src.apis.store import store_router
 from src.apis.user import user_router
 from src.database import close_db, create_db_and_tables
 from src.redis_client import get_task_redis_client
-from src.service.background_task import (  # , process_expired_cart_messages
-    listen_to_expired_keys,
-    process_tasks,
-)
+from src.service.background_task import process_tasks
 
 
 async def create_consumer_group(stream_name: str, group_name: str):
@@ -29,16 +26,15 @@ async def create_consumer_group(stream_name: str, group_name: str):
 
 
 async def stop_background_tasks(app: FastAPI):
-    tasks = [app.state.stream_task, app.state.notify_task]  # , app.state.cart_task]
-    for task in tasks:
-        if task:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-            except Exception as e:
-                print(f"Error occurred while canceling task: {e}")
+    task = app.state.stream_task
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            print(f"Error occurred while canceling task: {e}")
 
 
 @asynccontextmanager
@@ -55,8 +51,6 @@ async def lifespan(app: FastAPI):
     # 백그라운드 작업 실행
     loop = asyncio.get_event_loop()
     app.state.stream_task = loop.create_task(process_tasks())
-    # app.state.cart_task = loop.create_task(process_expired_cart_messages())
-    app.state.notify_task = loop.create_task(listen_to_expired_keys())
 
     yield
 
