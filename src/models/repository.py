@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.apis.dependencies import get_session
 from src.elastic_client import get_elasticsearch_client
+from src.models.order import Order, OrderItem
 from src.models.product import (
     PrimaryCategory,
     Product,
@@ -151,6 +152,14 @@ class StockRepository:
             .limit(quantity)
         )
         return result.all()
+
+    async def update_stock_status_to_sold(self, stocks: list):
+        for stock in stocks:
+            stock.status = StatusType.SOLD
+        self.session.add_all(instances=stocks)
+        await self.session.commit()
+        for stock in stocks:
+            await self.session.refresh(instance=stock)
 
 
 class UserRepository:
@@ -346,3 +355,20 @@ class CartRepository:
     async def reserve_key_exists(self, user_id: int, product_id: int) -> bool:
         key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
         return await self.redis.exists(key) == 1
+
+
+class OrderRepository:
+    def __init__(self, session: AsyncSession = Depends(get_session)):
+        self.session = session
+
+    async def create_order(self, order: Order) -> Order:
+        self.session.add(instance=order)
+        await self.session.commit()
+        await self.session.refresh(instance=order)
+        return order
+
+    async def create_order_items(self, order_items: list[OrderItem]):
+        self.session.add_all(instances=order_items)
+        await self.session.commit()
+        for order_item in order_items:
+            await self.session.refresh(instance=order_item)
