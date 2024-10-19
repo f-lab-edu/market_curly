@@ -6,6 +6,7 @@ from sqlalchemy import Enum as SqlEnum
 from sqlalchemy import Text
 from sqlmodel import Field, Relationship, SQLModel
 
+from src.models.order import OrderItem
 from src.models.user import Seller
 
 
@@ -77,6 +78,7 @@ class Product(SQLModel, table=True):
     category: "TertiaryCategory" = Relationship(back_populates="products")
     seller: "Seller" = Relationship(back_populates="products")
     stocks: List["Stock"] = Relationship(back_populates="product")
+    order_items: List["OrderItem"] = Relationship(back_populates="product")
 
 
 class StatusType(str, Enum):

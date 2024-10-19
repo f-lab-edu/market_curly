@@ -26,6 +26,7 @@ class User(SQLModel, table=True):
     buyer: Optional["Buyer"] = Relationship(
         back_populates="user", sa_relationship_kwargs={"lazy": "joined"}
     )
+    orders: List["Order"] = Relationship(back_populates="user")
 
 
 class Seller(SQLModel, table=True):
