@@ -4,6 +4,7 @@ from src.models.repository import (
     CartRepository,
     ElasticsearchRepository,
     ProductRepository,
+    StockRepository,
 )
 from src.schema.response import CartResponse
 from src.service.inventory import InventoryService
@@ -15,136 +16,119 @@ class CartService:
         cart_repo: CartRepository = Depends(CartRepository),
         es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository),
         product_repo: ProductRepository = Depends(ProductRepository),
+        stock_repo: StockRepository = Depends(StockRepository),
         inventory_service: InventoryService = Depends(InventoryService),
     ):
         self.cart_repo = cart_repo
         self.es_repo = es_repo
         self.product_repo = product_repo
+        self.stock_repo = stock_repo
         self.inventory_service = inventory_service
 
     async def add_to_cart(self, user_id: int, product_id: int, quantity: int) -> dict:
-        # 1. 예약 관리 여부 확인
-        if await self.inventory_service.is_product_reserved(product_id=product_id):
-            # 2. 예약 관리 중일 때 예약 슬롯 확인
-            empty_slots: list = (
-                await self.inventory_service.get_empty_reservation_slots(
-                    product_id=product_id
-                )
-            )
-            available_quantity: int = len(empty_slots)
+        available_stock = None
 
-            if available_quantity == 0:
-                return {
-                    "is_success": False,
-                    "status_code": 400,
-                    "message": "Insufficient stock",
-                }
-            elif available_quantity < quantity:
-                return {
-                    "is_success": False,
-                    "status_code": 400,
-                    "message": "Quantity requested is more than available",
-                }
-        else:
-            # 3. 비예약 관리 상품인 경우 MySQL에서 재고 확인
-            stock: int | None = await self.product_repo.get_product_stock(
+        try:
+            stocks_count: int = await self.stock_repo.count_stocks_by_product_id(
                 product_id=product_id
             )
+            total_in_cart: int = await self.cart_repo.total_stocks_in_cart(
+                product_id=product_id
+            )
+            available_stock = stocks_count - total_in_cart
 
-            if stock is None:
+            current_quantity: int = await self.cart_repo.get_product_quantity_in_cart(
+                user_id=user_id, product_id=product_id
+            )
+            total_quantity = current_quantity + quantity
+
+            if available_stock <= 10:  # 임계값 이하일 경우 Redis에서 별도 예약 관리
+                reserved_quantity: int = await self.cart_repo.get_reserved_quantity(
+                    user_id=user_id, product_id=product_id
+                )
+                total_reserved_quantity: int = reserved_quantity + quantity
+
+                await self.cart_repo.product_reservation(
+                    user_id=user_id,
+                    product_id=product_id,
+                    quantity=total_reserved_quantity,
+                )
+
+            if available_stock >= quantity:
+                await self.cart_repo.add_product(
+                    user_id=user_id, product_id=product_id, quantity=total_quantity
+                )
+
                 return {
-                    "is_success": False,
-                    "status_code": 404,
-                    "message": "Product not found or unavailable",
+                    "is_success": True,
+                    "message": "Goods added to cart successfully",
                 }
-            elif stock < quantity:
+            else:
+                if available_stock <= 10:
+                    await self.cart_repo.cancel_reservation(
+                        user_id=user_id, product_id=product_id, quantity=quantity
+                    )
+
                 return {
                     "is_success": False,
                     "status_code": 400,
-                    "message": "Insufficient stock",
+                    "message": f"Quantity requested ({quantity}) exceeds available stock ({available_stock}).",
                 }
 
-            # 4. 재고가 10개 이하일 때 Redis에서 예약 관리하도록 슬롯 생성
-            if stock <= 10:
-                is_created_slots: bool = (
-                    await self.inventory_service.create_reservation_slots(
-                        product_id=product_id, stock=stock
-                    )
+        except Exception as e:
+            if available_stock is not None and available_stock <= 10:
+                await self.cart_repo.cancel_reservation(
+                    user_id=user_id, product_id=product_id, quantity=quantity
                 )
-                if not is_created_slots:
-                    return {
-                        "is_success": False,
-                        "status_code": 503,
-                        "message": "Service temporarily unavailable. Please try again later.",
-                    }
 
-        # 5. 장바구니에 상품 추가 또는 수량 업데이트
-        current_quantity: int = await self.cart_repo.get_product_quantity_in_cart(
-            user_id=user_id, product_id=product_id
-        )
-        if current_quantity:
-            total_quantity = current_quantity + quantity
-            await self.cart_repo.add_product(
-                user_id=user_id, product_id=product_id, quantity=total_quantity
-            )
-        else:
-            await self.cart_repo.add_product(
-                user_id=user_id, product_id=product_id, quantity=quantity
-            )
-
-        # 6. 예약 관리 중인 상품일 때 예약 슬롯 업데이트
-        if await self.inventory_service.is_product_reserved(product_id=product_id):
-            is_reservation_result = await self.inventory_service.reserve_product(
-                user_id=user_id, product_id=product_id, quantity=quantity
-            )
-            if not is_reservation_result:
-                return {
-                    "is_success": False,
-                    "status_code": 503,
-                    "message": "Reservation failed. Please try again later.",
-                }
-
-        return {"is_success": True, "message": "Goods added to cart successfully"}
+            return {
+                "is_success": False,
+                "status_code": 500,
+                "message": f"An error occurred: {str(e)}",
+            }
 
     async def get_cart(self, user_id: int) -> list[CartResponse]:
-        cart_data = await self.cart_repo.get_cart(user_id=user_id)
-
         cart_response = []
-        for product_id, quantity in cart_data.items():
-            product_info = await self.es_repo.get_product_by_id(product_id=product_id)
-            cart_response.append(
-                CartResponse(product_id=product_id, quantity=quantity, **product_info)
+        product_keys = await self.cart_repo.get_cart_product_keys(user_id=user_id)
+        for key in product_keys:
+            product_id = key.split(":")[2]
+            quantity = await self.cart_repo.get_product_quantity_in_cart(
+                user_id=user_id, product_id=product_id
             )
-
+            info = await self.es_repo.get_product_by_id(product_id=product_id)
+            cart_response.append(
+                CartResponse(product_id=product_id, quantity=quantity, **info)
+            )
         return cart_response
 
     async def delete_from_cart(self, user_id: int, product_id: int):
         await self.cart_repo.delete_from_cart(user_id=user_id, product_id=product_id)
-        await self.inventory_service.release_product(
+
+        if await self.cart_repo.reserve_key_exists(
             user_id=user_id, product_id=product_id
-        )
+        ):
+            await self.cart_repo.delete_reserve_key(
+                user_id=user_id, product_id=product_id
+            )
 
     async def clear_cart(self, user_id: int):
-        cart_data = await self.cart_repo.get_cart(user_id=user_id)
-        for product_id, quantity in cart_data.items():
-            if await self.inventory_service.is_product_reserved(product_id=product_id):
-                await self.inventory_service.release_product(
+        product_keys = await self.cart_repo.get_cart_product_keys(user_id=user_id)
+        for key in product_keys:
+            product_id = key.split(":")[-1]
+            if await self.cart_repo.reserve_key_exists(
+                user_id=user_id, product_id=product_id
+            ):
+                await self.cart_repo.delete_reserve_key(
                     user_id=user_id, product_id=product_id
                 )
 
-        await self.cart_repo.clear_cart(user_id=user_id)
+        await self.cart_repo.clear_cart(keys=product_keys)
 
     async def update_cart_quantity(
         self, user_id: int, product_id: int, quantity: int
     ) -> dict:
         if quantity == 0:
-            await self.cart_repo.delete_from_cart(
-                user_id=user_id, product_id=product_id
-            )
-            if await self.inventory_service.is_product_reserved(product_id=product_id):
-                await self.inventory_service.release_product(
-                    user_id=user_id, product_id=product_id
-                )
+            await self.delete_from_cart(user_id=user_id, product_id=product_id)
             return {"is_success": True, "message": "Product removed from cart"}
 
         current_quantity: int = await self.cart_repo.get_product_quantity_in_cart(
@@ -157,33 +141,24 @@ class CartService:
                 "message": "Product not in cart",
             }
 
-        if quantity < current_quantity:
-            quantity_to_release = current_quantity - quantity
-
-            if await self.inventory_service.is_product_reserved(product_id=product_id):
-                is_release_result = (
-                    await self.inventory_service.release_partial_product(
-                        user_id=user_id,
-                        product_id=product_id,
-                        quantity_to_release=quantity_to_release,
-                    )
+        if quantity == current_quantity:
+            return {"is_success": True, "message": "Quantity remains the same"}
+        elif quantity < current_quantity:
+            if await self.cart_repo.reserve_key_exists(
+                user_id=user_id, product_id=product_id
+            ):
+                await self.cart_repo.cancel_reservation(
+                    user_id=user_id, product_id=product_id, quantity=quantity
+                )
+        else:
+            if await self.cart_repo.reserve_key_exists(
+                user_id=user_id, product_id=product_id
+            ):
+                await self.cart_repo.product_reservation(
+                    user_id=user_id, product_id=product_id, quantity=quantity
                 )
 
-                if not is_release_result:
-                    return {
-                        "is_success": False,
-                        "status_code": 503,
-                        "message": "Slot release failed. Please try again later.",
-                    }
-
-            await self.cart_repo.add_product(
-                user_id=user_id, product_id=product_id, quantity=quantity
-            )
-
-        elif quantity > current_quantity:
-            additional_quantity = quantity - current_quantity
-            return await self.add_to_cart(
-                user_id=user_id, product_id=product_id, quantity=additional_quantity
-            )
-
+        await self.cart_repo.add_product(
+            user_id=user_id, product_id=product_id, quantity=quantity
+        )
         return {"is_success": True, "message": "Cart updated successfully"}

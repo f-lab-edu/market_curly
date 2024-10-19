@@ -6,11 +6,15 @@ from email.mime.text import MIMEText
 
 from aiosmtplib import SMTP
 
+from src.apis.dependencies import get_session
 from src.elastic_client import get_elasticsearch_client
-from src.redis_client import get_task_redis_client
+from src.models.repository import StockRepository
+from src.redis_client import get_redis_client, get_task_redis_client
 
 task_redis = get_task_redis_client()
 es = get_elasticsearch_client()
+cart_redis = get_redis_client()
+stock_repo = StockRepository(get_session())
 
 
 async def process_tasks():

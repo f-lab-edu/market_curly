@@ -4,7 +4,7 @@ from elasticsearch import AsyncElasticsearch
 from fastapi import Depends
 from redis.asyncio import Redis
 from sqlalchemy.orm import joinedload, selectinload
-from sqlmodel import SQLModel, select
+from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.apis.dependencies import get_session
@@ -13,6 +13,8 @@ from src.models.product import (
     PrimaryCategory,
     Product,
     SecondaryCategory,
+    StatusType,
+    Stock,
     TertiaryCategory,
 )
 from src.models.user import Seller, User
@@ -120,6 +122,35 @@ class ProductRepository:
             )
         )
         return result.one_or_none()
+
+
+class StockRepository:
+    def __init__(self, session: AsyncSession = Depends(get_session)):
+        self.session = session
+
+    async def create_stocks(self, product_id: int, quantity: int):
+        stock_list = [
+            Stock(product_id=product_id, status=StatusType.AVAILABLE)
+            for _ in range(quantity)
+        ]
+        self.session.add_all(stock_list)
+        await self.session.commit()
+
+    async def count_stocks_by_product_id(self, product_id: int):
+        result = await self.session.exec(
+            select(func.count(Stock.id)).where(
+                Stock.product_id == product_id, Stock.status == StatusType.AVAILABLE
+            )
+        )
+        return result.one_or_none()
+
+    async def get_available_stock_by_quantity(self, product_id: int, quantity: int):
+        result = await self.session.exec(
+            select(Stock)
+            .where(Stock.product_id == product_id, Stock.status == StatusType.AVAILABLE)
+            .limit(quantity)
+        )
+        return result.all()
 
 
 class UserRepository:
@@ -239,26 +270,79 @@ class CartRepository:
     def __init__(self, redis: Redis = Depends(get_redis_client)):
         self.redis = redis
 
-    def generate_cart_key(self, user_id: int) -> str:
+    @staticmethod
+    def generate_cart_key(user_id: int) -> str:
         return f"cart:{user_id}"
 
+    @staticmethod
+    def generate_product_key_in_cart(user_id: int, product_id: int) -> str:
+        return f"cart:{user_id}:{product_id}"
+
+    @staticmethod
+    def generate_reserve_key(user_id: int, product_id: int) -> str:
+        return f"reserve:{product_id}:{user_id}"
+
     async def add_product(self, user_id: int, product_id: int, quantity: int):
-        cart_key = self.generate_cart_key(user_id=user_id)
-        await self.redis.hset(cart_key, product_id, quantity)
+        key = self.generate_product_key_in_cart(user_id=user_id, product_id=product_id)
+        await self.redis.hset(key, mapping={"quantity": quantity})
+        # await self.redis.expire(key, 86400)  # 상품별 TTL 설정 24시간
+        await self.redis.expire(key, 60)  # 상품별 TTL 설정 2분
 
-    async def get_cart(self, user_id: str) -> dict:
-        cart_key = self.generate_cart_key(user_id=user_id)
-        return await self.redis.hgetall(cart_key)
+    async def get_cart_product_keys(self, user_id: int) -> list:
+        cart_key = self.generate_cart_key(user_id=user_id) + ":*"
+        keys = await self.redis.keys(cart_key)
+        return keys
 
-    async def delete_from_cart(self, user_id: str, product_id: int):
-        cart_key = self.generate_cart_key(user_id=user_id)
-        await self.redis.hdel(cart_key, product_id)
+    async def delete_from_cart(self, user_id: int, product_id: int):
+        key = self.generate_product_key_in_cart(user_id=user_id, product_id=product_id)
+        await self.redis.delete(key)
 
-    async def clear_cart(self, user_id: str):
-        cart_key = self.generate_cart_key(user_id=user_id)
-        await self.redis.delete(cart_key)
+    async def clear_cart(self, keys: list):
+        await self.redis.delete(*keys)
 
     async def get_product_quantity_in_cart(self, user_id: int, product_id: int) -> int:
-        cart_key = self.generate_cart_key(user_id=user_id)
-        quantity = await self.redis.hget(cart_key, product_id)
-        return int(quantity) if quantity else 0
+        key = self.generate_product_key_in_cart(user_id=user_id, product_id=product_id)
+        quantity = await self.redis.hget(key, "quantity")
+        return int(quantity or 0)
+
+    async def total_stocks_in_cart(self, product_id: int) -> int:
+        keys = await self.redis.keys(f"cart:*:{product_id}")
+        quantities = 0
+
+        for key in keys:
+            quantity = await self.redis.hget(key, "quantity")
+            quantities += int(quantity or 0)
+
+        return quantities
+
+    async def product_reservation(self, user_id: int, product_id: int, quantity: int):
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        await self.redis.hincrby(key, "quantity", quantity)
+        await self.redis.expire(key, 60)
+
+    async def get_reserved_quantity(self, user_id: int, product_id: int) -> int:
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        reserved_quantity = await self.redis.hget(key, "quantity")
+        return int(reserved_quantity or 0)
+
+    async def cancel_reservation(self, user_id: int, product_id: int, quantity: int):
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        reserved_quantity = int(await self.redis.hget(key, "quantity"))
+
+        if reserved_quantity >= quantity:
+            updated_quantity = reserved_quantity - quantity
+            if updated_quantity > 0:
+                await self.redis.hset(key, "quantity", updated_quantity)
+                await self.redis.expire(key, 60)
+            else:
+                await self.redis.delete(key)
+        else:
+            raise ValueError("Cannot cancel more than the reserved quantity.")
+
+    async def delete_reserve_key(self, user_id: int, product_id: int):
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        await self.redis.delete(key)
+
+    async def reserve_key_exists(self, user_id: int, product_id: int) -> bool:
+        key = self.generate_reserve_key(user_id=user_id, product_id=product_id)
+        return await self.redis.exists(key) == 1
