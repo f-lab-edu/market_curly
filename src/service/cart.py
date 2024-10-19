@@ -7,7 +7,6 @@ from src.models.repository import (
     StockRepository,
 )
 from src.schema.response import CartResponse
-from src.service.inventory import InventoryService
 
 
 class CartService:
@@ -17,13 +16,11 @@ class CartService:
         es_repo: ElasticsearchRepository = Depends(ElasticsearchRepository),
         product_repo: ProductRepository = Depends(ProductRepository),
         stock_repo: StockRepository = Depends(StockRepository),
-        inventory_service: InventoryService = Depends(InventoryService),
     ):
         self.cart_repo = cart_repo
         self.es_repo = es_repo
         self.product_repo = product_repo
         self.stock_repo = stock_repo
-        self.inventory_service = inventory_service
 
     async def add_to_cart(self, user_id: int, product_id: int, quantity: int) -> dict:
         available_stock = None
